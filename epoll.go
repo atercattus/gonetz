@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	EPOLLET = 1 << 31 // в stdlib syscall.EPOLLET идет не того типа, как хотелось бы
+	EPOLLET = 1 << 31 // syscall.EPOLLET has wrong type
 )
 
 type (
@@ -70,10 +70,6 @@ func (epoll *EPoll) AddClient(clientFd int) (err error) {
 		return nil
 	}
 
-	//} else if err = syscall.SetsockoptInt(serverFd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
-	//} else if err = syscall.SetsockoptInt(serverFd, syscall.SOL_SOCKET, SO_REUSEPORT, 1); err != nil {
-
-	//syscall.Close(clientFd)
 	return err
 }
 

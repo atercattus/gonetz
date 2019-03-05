@@ -10,7 +10,7 @@ import (
 
 const (
 	maxTCPEvents = 2048
-	//SO_REUSEPORT = 15 // нет в stdlib
+	//SO_REUSEPORT = 15 // missing in stdlib
 )
 
 type (
@@ -82,7 +82,7 @@ func (conn *TCPConn) makeListener(host string, port uint) (err error) {
 		return nil
 	}
 
-	// что-то пошло не так
+	// something went wrong
 	syscall.Close(serverFd)
 
 	return err
@@ -216,7 +216,7 @@ func (conn *TCPConn) startWorkerLoop(epoll *EPoll) {
 }
 
 func (conn *TCPConn) close(clientEpoll *EPoll, clientFd int) {
-	// стоит проверять ошибки :)
+	// ToDo: стоит проверять ошибки :)
 	clientEpoll.DeleteFd(clientFd)
 	syscall.Syscall(syscall.SYS_CLOSE, uintptr(clientFd), 0, 0)
 }
