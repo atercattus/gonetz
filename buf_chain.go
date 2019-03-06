@@ -5,6 +5,7 @@ import "sync"
 type (
 	BufChain struct {
 		chain           [][]byte
+		chainIf         []interface{}
 		totalLen        int
 		posInFirstChunk int
 	}
@@ -34,8 +35,12 @@ func (bc *BufChain) Write(buf []byte) {
 }
 
 func (bc *BufChain) growChain() {
-	chunk := bufPool4K.Get().([]byte)[:0]
+	chunkIf := bufPool4K.Get()
+	chunk := chunkIf.([]byte)[:0]
+
 	bc.chain = append(bc.chain, chunk)
+	bc.chainIf = append(bc.chainIf, chunkIf)
+
 	bc.posInFirstChunk = 0
 }
 
@@ -88,14 +93,20 @@ func (bc *BufChain) Read(buf []byte) (readed int) {
 
 	if oldChunks > -1 {
 		for i := 0; i <= oldChunks; i++ {
-			bufPool4K.Put(bc.chain[i])
+			bufPool4K.Put(bc.chainIf[i])
 		}
 
 		if oldChunks < len(bc.chain)-1 {
-			copy(bc.chain[0:], bc.chain[oldChunks+1:])
-			bc.chain = bc.chain[:len(bc.chain)-oldChunks-1]
+			from := oldChunks + 1
+			copy(bc.chain[0:], bc.chain[from:])
+			copy(bc.chainIf[0:], bc.chainIf[from:])
+
+			to := len(bc.chain) - oldChunks - 1
+			bc.chain = bc.chain[:to]
+			bc.chainIf = bc.chainIf[:to]
 		} else {
-			bc.chain = bc.chain[:0] // gc?
+			bc.chain = bc.chain[:0]     // gc?
+			bc.chainIf = bc.chainIf[:0] // gc?
 		}
 	}
 
@@ -103,9 +114,10 @@ func (bc *BufChain) Read(buf []byte) (readed int) {
 }
 
 func (bc *BufChain) Clean() {
-	for _, chunk := range bc.chain {
-		bufPool4K.Put(chunk)
+	for _, chunkIf := range bc.chainIf {
+		bufPool4K.Put(chunkIf)
 	}
 	bc.chain = [][]byte{}
+	bc.chainIf = []interface{}{}
 	bc.totalLen = 0
 }

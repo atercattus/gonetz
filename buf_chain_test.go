@@ -22,6 +22,9 @@ func Test_growChain(t *testing.T) {
 	if l, exp := len(bc.chain), 1; l != exp {
 		t.Fatalf(`growChain expect %d got %d`, exp, l)
 	}
+	if l, exp := len(bc.chainIf), 1; l != exp {
+		t.Fatalf(`growChain expect %d got %d`, exp, l)
+	}
 
 	iters := 10
 	for iter := 1; iter <= iters; iter++ {
@@ -29,6 +32,9 @@ func Test_growChain(t *testing.T) {
 	}
 
 	if l, exp := len(bc.chain), 1+iters; l != exp {
+		t.Fatalf(`growChain expect %d got %d`, exp, l)
+	}
+	if l, exp := len(bc.chainIf), 1+iters; l != exp {
 		t.Fatalf(`growChain expect %d got %d`, exp, l)
 	}
 }
@@ -73,6 +79,9 @@ func Test_Clean(t *testing.T) {
 	}
 
 	if w, exp := len(bc.chain), 0; w != exp {
+		t.Fatalf(`Clean len(bc.chain) expect %d got %d`, exp, w)
+	}
+	if w, exp := len(bc.chainIf), 0; w != exp {
 		t.Fatalf(`Clean len(bc.chain) expect %d got %d`, exp, w)
 	}
 
@@ -154,9 +163,7 @@ func Test_Write_randSize(t *testing.T) {
 
 		stageInfo.beginCb()
 
-		runtime.GC()
-
-		for i := 1; i <= 200; i++ {
+		for i := 1; i <= 100; i++ {
 			b := byte(i - 1 + '1')
 
 			var l int
