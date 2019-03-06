@@ -75,6 +75,10 @@ func Test_Clean(t *testing.T) {
 	if w, exp := len(bc.chain), 0; w != exp {
 		t.Fatalf(`Clean len(bc.chain) expect %d got %d`, exp, w)
 	}
+
+	if w, exp := bc.posInFirstChunk, 0; w != exp {
+		t.Fatalf(`Clean bc.posInFirstChunk expect %d got %d`, exp, w)
+	}
 }
 
 func Test_Write_fixed(t *testing.T) {
@@ -256,4 +260,70 @@ func Test_Write_goro(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func Test_Read(t *testing.T) {
+	var (
+		bc  BufChain
+		buf = bytes.Repeat([]byte(`1234567890`), 500)
+	)
+
+	for _, bufSize := range [...]int{1, 4, 42, 123, 1024, 4 * 1024, 8 * 1024, 100500 * 1024} {
+		bc.Clean()
+		bc.Write(buf)
+		totalLen := bc.totalLen
+
+		tmp := make([]byte, bufSize)
+		readedBuf := make([]byte, 0, len(buf))
+
+		for {
+			w := bc.Read(tmp[:])
+			if w > 0 {
+				readedBuf = append(readedBuf, tmp[:w]...)
+			}
+			if w < len(tmp) {
+				break
+			}
+		}
+
+		if w, exp := len(readedBuf), totalLen; w != exp {
+			t.Fatalf(`readed mismatch (bufSize %d): expect %d got %d`, bufSize, exp, w)
+		}
+
+		if !bytes.Equal(readedBuf, buf) {
+			t.Fatalf(`buf content differs (bufSize %d)`, bufSize)
+		}
+	}
+}
+
+func Test_Read_GC(t *testing.T) {
+	if testing.Short() {
+		t.Skip(`skipping test in short mode`)
+	}
+
+	var (
+		bc  BufChain
+		buf = bytes.Repeat([]byte(`1234567890`), 500)
+		tmp [497]byte
+	)
+
+	for iter := 0; iter < 10*1000*1000; iter++ {
+		bc.Write(buf)
+		totalLen := bc.totalLen
+
+		readed := 0
+		for {
+			w := bc.Read(tmp[:])
+			if w > 0 {
+				readed += w
+			}
+			if w < len(tmp) {
+				break
+			}
+		}
+
+		if w, exp := readed, totalLen; w != exp {
+			t.Fatalf(`readed mismatch: expect %d got %d`, exp, w)
+		}
+	}
 }
