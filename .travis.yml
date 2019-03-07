@@ -1,0 +1,14 @@
+language: go
+
+go:
+  - tip
+  - 1.12
+  - 1.11.x
+
+os:
+  - linux
+
+script:
+  - GOOS=linux go build
+
+  - go test -v -parallel 4 -cover
