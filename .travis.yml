@@ -15,7 +15,7 @@ install:
 script:
   - GOOS=linux go build
   - go test -v -parallel 4 -cover
-  - courtney -e -v
+  - courtney -v
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
