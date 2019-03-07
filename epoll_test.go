@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func Test_InitClientEpoll(t *testing.T) {
+func Test_EPoll_InitClientEpoll(t *testing.T) {
 	var epoll EPoll
 
 	if err := InitClientEpoll(&epoll); err != nil {
@@ -25,7 +25,7 @@ func Test_InitClientEpoll(t *testing.T) {
 	}
 }
 
-func Test_InitServerEpoll(t *testing.T) {
+func Test_EPoll_InitServerEpoll(t *testing.T) {
 	var (
 		epoll    EPoll
 		serverFd int
@@ -57,7 +57,7 @@ func Test_InitServerEpoll(t *testing.T) {
 	}
 }
 
-func Test_AddClient(t *testing.T) {
+func Test_EPoll_AddClient(t *testing.T) {
 	var (
 		epoll    EPoll
 		clientFd int
@@ -93,7 +93,7 @@ func Test_AddClient(t *testing.T) {
 	}
 }
 
-func Test_DeleteFd(t *testing.T) {
+func Test_EPoll_DeleteFd(t *testing.T) {
 	var (
 		epoll    EPoll
 		clientFd int
@@ -127,7 +127,7 @@ func Test_DeleteFd(t *testing.T) {
 	}
 }
 
-func Test_Wait(t *testing.T) {
+func Test_EPoll_Wait(t *testing.T) {
 	var (
 		epoll    EPoll
 		clientFd int

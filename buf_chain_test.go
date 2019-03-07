@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func Test_growChain(t *testing.T) {
+func Test_BufChain_growChain(t *testing.T) {
 	var (
 		bc BufChain
 	)
@@ -39,7 +39,7 @@ func Test_growChain(t *testing.T) {
 	}
 }
 
-func Test_appendToLast(t *testing.T) {
+func Test_BufChain_appendToLast(t *testing.T) {
 	var (
 		bc  BufChain
 		buf = []byte(`test`)
@@ -60,7 +60,7 @@ func Test_appendToLast(t *testing.T) {
 	}
 }
 
-func Test_Clean(t *testing.T) {
+func Test_BufChain_Clean(t *testing.T) {
 	var (
 		bc BufChain
 	)
@@ -90,7 +90,7 @@ func Test_Clean(t *testing.T) {
 	}
 }
 
-func Test_Write_fixed(t *testing.T) {
+func Test_BufChain_Write_fixed(t *testing.T) {
 	var (
 		bc   BufChain
 		data [][]byte
@@ -129,7 +129,7 @@ func Test_Write_fixed(t *testing.T) {
 	}
 }
 
-func Test_Write_randSize(t *testing.T) {
+func Test_BufChain_Write_randSize(t *testing.T) {
 	if testing.Short() {
 		t.Skip(`skipping test in short mode`)
 	}
@@ -200,7 +200,7 @@ func Test_Write_randSize(t *testing.T) {
 	}
 }
 
-func Test_Write_goro(t *testing.T) {
+func Test_BufChain_Write_goro(t *testing.T) {
 	if testing.Short() {
 		t.Skip(`skipping test in short mode`)
 	}
@@ -269,7 +269,7 @@ func Test_Write_goro(t *testing.T) {
 	wg.Wait()
 }
 
-func Test_Read(t *testing.T) {
+func Test_BufChain_Read(t *testing.T) {
 	var (
 		bc  BufChain
 		buf = bytes.Repeat([]byte(`1234567890`), 500)
@@ -303,7 +303,7 @@ func Test_Read(t *testing.T) {
 	}
 }
 
-func Test_Read_GC(t *testing.T) {
+func Test_BufChain_Read_GC(t *testing.T) {
 	if testing.Short() {
 		t.Skip(`skipping test in short mode`)
 	}
