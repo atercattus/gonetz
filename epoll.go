@@ -6,7 +6,8 @@ import (
 )
 
 const (
-	EPOLLET = 1 << 31 // syscall.EPOLLET has wrong type
+	maxEpollEvents = 2048
+	EPOLLET        = 1 << 31 // syscall.EPOLLET has wrong type
 )
 
 type (
@@ -22,7 +23,7 @@ type (
 	}
 )
 
-func InitClientEpoll(eventsCap int, epoll *EPoll) (err error) {
+func InitClientEpoll(epoll *EPoll) (err error) {
 	epoll.fd, err = syscall.EpollCreate1(0)
 	if err != nil {
 		return err
@@ -30,15 +31,15 @@ func InitClientEpoll(eventsCap int, epoll *EPoll) (err error) {
 
 	epoll.WaitTimeout = -1
 
-	epoll.eventsCap = eventsCap
-	epoll.events = make([]syscall.EpollEvent, eventsCap)
+	epoll.eventsCap = maxEpollEvents
+	epoll.events = make([]syscall.EpollEvent, maxEpollEvents)
 	epoll.eventsFirstPtr = uintptr(unsafe.Pointer(&epoll.events[0]))
 
 	return nil
 }
 
-func InitServerEpoll(serverFd int, eventsCap int, epoll *EPoll) (err error) {
-	if err = InitClientEpoll(eventsCap, epoll); err != nil {
+func InitServerEpoll(serverFd int, epoll *EPoll) (err error) {
+	if err = InitClientEpoll(epoll); err != nil {
 		return err
 	}
 
@@ -47,6 +48,7 @@ func InitServerEpoll(serverFd int, eventsCap int, epoll *EPoll) (err error) {
 
 	if err = syscall.EpollCtl(epoll.fd, syscall.EPOLL_CTL_ADD, serverFd, &epoll.event); err != nil {
 		syscall.Close(epoll.fd)
+		epoll.fd = 0
 		return err
 	}
 

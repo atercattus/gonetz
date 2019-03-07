@@ -13,7 +13,7 @@ check:
 	@$(GO) vet ./... || exit 1
 
 test:
-	@$(GO) test -parallel 4 -v -run ^Test -failfast
+	@$(GO) test -parallel 4 -v -run ^Test -failfast -cover
 
 cover:
 	@$(GO) test -parallel 4 -v -run ^Test -failfast -coverprofile cover.cover

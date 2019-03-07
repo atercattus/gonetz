@@ -9,8 +9,7 @@ import (
 )
 
 const (
-	maxTCPEvents = 2048
-	//SO_REUSEPORT = 15 // missing in stdlib
+//SO_REUSEPORT = 15 // missing in stdlib
 )
 
 type (
@@ -74,8 +73,8 @@ func (conn *TCPConn) makeListener(host string, port uint) (err error) {
 	} else if err = syscall.SetsockoptInt(serverFd, syscall.SOL_TCP, syscall.TCP_NODELAY, 1); err != nil { // ?
 	} else if err = syscall.SetsockoptInt(serverFd, syscall.SOL_TCP, syscall.TCP_QUICKACK, 1); err != nil {
 	} else if err = syscall.Bind(serverFd, &addr); err != nil {
-	} else if err = syscall.Listen(serverFd, maxTCPEvents); err != nil {
-	} else if err = InitServerEpoll(serverFd, maxTCPEvents, &conn.epoll); err != nil {
+	} else if err = syscall.Listen(serverFd, maxEpollEvents); err != nil {
+	} else if err = InitServerEpoll(serverFd, &conn.epoll); err != nil {
 	} else {
 		// all ok
 		conn.fd = serverFd
@@ -105,7 +104,7 @@ func (conn *TCPConn) setupServerWorkers(poolSize int) (err error) {
 
 		epoll := &pool.epolls[i]
 
-		if err = InitClientEpoll(maxTCPEvents, epoll); err != nil {
+		if err = InitClientEpoll(epoll); err != nil {
 			return err // Каков шанс, что тут может возникнуть ошибка?
 		}
 
