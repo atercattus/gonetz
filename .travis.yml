@@ -8,7 +8,15 @@ go:
 os:
   - linux
 
+install:
+  - go get -u github.com/mattn/goveralls
+  - go get -u github.com/dave/courtney
+
 script:
   - GOOS=linux go build
-
   - go test -v -parallel 4 -cover
+  - courtney -e -v
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
+  - goveralls -coverprofile=coverage.out -service=travis-ci
