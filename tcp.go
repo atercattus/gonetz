@@ -32,6 +32,11 @@ type (
 	}
 )
 
+var (
+	ErrWrongHost     = fmt.Errorf(`wrong host`)
+	ErrWrongPoolSize = fmt.Errorf(`wrong pool size`)
+)
+
 func MakeServer(host string, port uint) (conn *TCPConn, err error) {
 	conn = &TCPConn{}
 
@@ -44,8 +49,6 @@ func MakeServer(host string, port uint) (conn *TCPConn, err error) {
 
 	conn.setupAcceptAddr()
 
-	conn.startServerLoop()
-
 	return conn, err
 }
 
@@ -55,25 +58,30 @@ func (conn *TCPConn) setupAcceptAddr() {
 	conn.acceptAddrLenPtr = uintptr(unsafe.Pointer(&conn.acceptAddrLen))
 }
 
-func (conn *TCPConn) makeListener(host string, port uint) (err error) {
-	if host == `` {
-		host = `0.0.0.0`
+func (conn *TCPConn) makeListener(listenAddr string, listenPort uint) (err error) {
+	if listenAddr == `` {
+		listenAddr = `0.0.0.0`
 	}
 
-	addr := syscall.SockaddrInet4{Port: int(port)}
-	copy(addr.Addr[:], net.ParseIP(host).To4())
+	ip := net.ParseIP(listenAddr)
+	if len(ip) == 0 {
+		return ErrWrongHost
+	}
+
+	addr := syscall.SockaddrInet4{Port: int(listenPort)}
+	copy(addr.Addr[:], ip.To4())
 
 	serverFd := 0
 
-	if serverFd, err = syscall.Socket(syscall.AF_INET, syscall.O_NONBLOCK|syscall.SOCK_STREAM, 0); err != nil {
+	if serverFd, err = SyscallWrappers.Socket(syscall.AF_INET, syscall.O_NONBLOCK|syscall.SOCK_STREAM, 0); err != nil {
 		return err
-	} else if err = syscall.SetNonblock(serverFd, true); err != nil {
+	} else if err = SyscallWrappers.SetNonblock(serverFd, true); err != nil {
 		//} else if err = syscall.SetsockoptInt(serverFd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
 		//} else if err = syscall.SetsockoptInt(serverFd, syscall.SOL_SOCKET, SO_REUSEPORT, 1); err != nil {
-	} else if err = syscall.SetsockoptInt(serverFd, syscall.SOL_TCP, syscall.TCP_NODELAY, 1); err != nil { // ?
-	} else if err = syscall.SetsockoptInt(serverFd, syscall.SOL_TCP, syscall.TCP_QUICKACK, 1); err != nil {
-	} else if err = syscall.Bind(serverFd, &addr); err != nil {
-	} else if err = syscall.Listen(serverFd, maxEpollEvents); err != nil {
+	} else if err = SyscallWrappers.SetsockoptInt(serverFd, syscall.SOL_TCP, syscall.TCP_NODELAY, 1); err != nil { // ?
+	} else if err = SyscallWrappers.SetsockoptInt(serverFd, syscall.SOL_TCP, syscall.TCP_QUICKACK, 1); err != nil {
+	} else if err = SyscallWrappers.Bind(serverFd, &addr); err != nil {
+	} else if err = SyscallWrappers.Listen(serverFd, maxEpollEvents); err != nil {
 	} else if err = InitServerEpoll(serverFd, &conn.epoll); err != nil {
 	} else {
 		// all ok
@@ -87,16 +95,20 @@ func (conn *TCPConn) makeListener(host string, port uint) (err error) {
 	return err
 }
 
-func (conn *TCPConn) setupServerWorkers(poolSize int) (err error) {
+func (conn *TCPConn) setupServerWorkers(poolSize uint) (err error) {
+	if poolSize < 1 {
+		return ErrWrongPoolSize
+	}
+
 	pool := &conn.workerPool
 
 	pool.fds = make([]int, poolSize)
 	pool.epolls = make([]EPoll, poolSize)
 
-	for i := 0; i < poolSize; i++ {
+	for i := 0; i < int(poolSize); i++ {
 		i := i
 
-		epollFd, err := syscall.EpollCreate1(0)
+		epollFd, err := SyscallWrappers.EpollCreate1(0)
 		if err != nil {
 			return err // Каков шанс, что тут может возникнуть ошибка?
 		}
@@ -114,7 +126,7 @@ func (conn *TCPConn) setupServerWorkers(poolSize int) (err error) {
 	return nil
 }
 
-func (conn *TCPConn) startServerLoop() {
+func (conn *TCPConn) Start() {
 	var (
 		epoll = conn.epoll
 	)
@@ -222,6 +234,7 @@ func (conn *TCPConn) close(clientEpoll *EPoll, clientFd int) {
 
 func (conn *TCPConn) Close() {
 	conn.close(&conn.epoll, conn.fd)
+	conn.fd = 0
 }
 
 func (conn *TCPConn) accept() (clientFd int, errno syscall.Errno) {

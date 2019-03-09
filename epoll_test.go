@@ -25,7 +25,7 @@ func Test_EPoll_InitClientEpoll(t *testing.T) {
 	}
 
 	// Проверка на ошибку
-	SyscallWrappers.setWrongEpollCreate1()
+	SyscallWrappers.setWrongEpollCreate1(0)
 	err := InitClientEpoll(&epoll)
 	SyscallWrappers.setRealEpollCreate1()
 	if err == nil {
@@ -55,7 +55,7 @@ func Test_EPoll_InitServerEpoll(t *testing.T) {
 	}
 
 	// Проверка на ошибку
-	SyscallWrappers.setWrongEpollCreate1()
+	SyscallWrappers.setWrongEpollCreate1(0)
 	err = InitServerEpoll(serverFd, &epoll)
 	SyscallWrappers.setRealEpollCreate1()
 	if err == nil {
