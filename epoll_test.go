@@ -5,14 +5,6 @@ import (
 	"testing"
 )
 
-var (
-	errorableSyscallWrappers = syscallWrapperFuncs{
-		EpollCreate1: func(flag int) (fd int, err error) {
-			return 0, syscall.EINVAL
-		},
-	}
-)
-
 func Test_EPoll_InitClientEpoll(t *testing.T) {
 	var epoll EPoll
 
@@ -33,9 +25,9 @@ func Test_EPoll_InitClientEpoll(t *testing.T) {
 	}
 
 	// Проверка на ошибку
-	syscallWrappers.EpollCreate1 = errorableSyscallWrappers.EpollCreate1
+	SyscallWrappers.setWrongEpollCreate1()
 	err := InitClientEpoll(&epoll)
-	syscallWrappers.EpollCreate1 = defaultSyscallWrappers.EpollCreate1
+	SyscallWrappers.setRealEpollCreate1()
 	if err == nil {
 		t.Fatalf(`InitClientEpoll didnt failed with wrong EpollCreate1`)
 	}
@@ -63,9 +55,9 @@ func Test_EPoll_InitServerEpoll(t *testing.T) {
 	}
 
 	// Проверка на ошибку
-	syscallWrappers.EpollCreate1 = errorableSyscallWrappers.EpollCreate1
+	SyscallWrappers.setWrongEpollCreate1()
 	err = InitServerEpoll(serverFd, &epoll)
-	syscallWrappers.EpollCreate1 = defaultSyscallWrappers.EpollCreate1
+	SyscallWrappers.setRealEpollCreate1()
 	if err == nil {
 		t.Fatalf(`InitServerEpoll didnt failed with wrong EpollCreate1`)
 	}

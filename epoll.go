@@ -21,26 +21,14 @@ type (
 
 		WaitTimeout int
 	}
-
-	syscallWrapperFuncs struct {
-		EpollCreate1 func(flag int) (fd int, err error)
-	}
 )
 
 var (
 	DefaultEPollWaitTimeout = -1
 )
 
-var (
-	// Врапперы над функциями для возможности потестировать сбои в работе этих вызовов
-	defaultSyscallWrappers = syscallWrapperFuncs{
-		EpollCreate1: syscall.EpollCreate1,
-	}
-	syscallWrappers = defaultSyscallWrappers
-)
-
 func InitClientEpoll(epoll *EPoll) (err error) {
-	epoll.fd, err = syscallWrappers.EpollCreate1(0)
+	epoll.fd, err = SyscallWrappers.EpollCreate1(0)
 	if err != nil {
 		return err
 	}
