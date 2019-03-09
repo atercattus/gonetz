@@ -80,7 +80,7 @@ func (epoll *EPoll) AddClient(clientFd int) (err error) {
 }
 
 func (epoll *EPoll) Wait() (nEvents int, errno syscall.Errno) {
-	r1, _, errno := syscall.Syscall6(
+	r1, _, errno := SyscallWrappers.Syscall6(
 		syscall.SYS_EPOLL_WAIT,
 		uintptr(epoll.fd),
 		epoll.eventsFirstPtr,

@@ -173,7 +173,7 @@ func (conn *TCPConn) getWorkerEPoll() *EPoll {
 	return &pool.epolls[idx]
 }
 
-func (conn *TCPConn) startWorkerLoop(epoll *EPoll) {
+func (conn *TCPConn) startWorkerLoop(epoll *EPoll) error {
 	var (
 		readBuf    = make([]byte, 32*1024)
 		readBufPtr = uintptr(unsafe.Pointer(&readBuf[0]))
@@ -189,8 +189,7 @@ func (conn *TCPConn) startWorkerLoop(epoll *EPoll) {
 			if errno == syscall.EINTR {
 				continue
 			}
-			log.Println(`SYS_EPOLL_WAIT errno: `, errno)
-			break
+			return errno
 		}
 
 		for ev := 0; ev < nEvents; ev++ {

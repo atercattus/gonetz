@@ -1,6 +1,8 @@
 package gonet
 
-import "syscall"
+import (
+	"syscall"
+)
 
 type (
 	syscallWrapperFuncs struct {
@@ -10,6 +12,7 @@ type (
 		SetsockoptInt func(fd, level, opt int, value int) (err error)
 		Bind          func(fd int, sa syscall.Sockaddr) (err error)
 		Listen        func(s int, n int) (err error)
+		Syscall6      func(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2 uintptr, err syscall.Errno)
 
 		EpollCreate1Skips int
 		//SocketSkips        int
@@ -17,6 +20,9 @@ type (
 		//SetsockoptIntSkips int
 		//BindSkips          int
 		//ListenSkips        int
+		Syscall6Skips int
+
+		Syscall6Trap uintptr
 	}
 )
 
@@ -29,6 +35,7 @@ var (
 		SetsockoptInt: syscall.SetsockoptInt,
 		Bind:          syscall.Bind,
 		Listen:        syscall.Listen,
+		Syscall6:      syscall.Syscall6,
 	}
 
 	// Сбойные варианты функций (read-only)
@@ -59,6 +66,16 @@ var (
 
 		Listen: func(s int, n int) (err error) {
 			return syscall.EINVAL
+		},
+
+		Syscall6: func(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2 uintptr, err syscall.Errno) {
+			if (SyscallWrappers.Syscall6Trap != 0) && (trap != SyscallWrappers.Syscall6Trap) {
+			} else if SyscallWrappers.Syscall6Skips > 0 {
+				SyscallWrappers.Syscall6Skips--
+			} else {
+				return 0, 0, syscall.EINVAL
+			}
+			return defaultSyscallWrappers.Syscall6(trap, a1, a2, a3, a4, a5, a6)
 		},
 	}
 
@@ -113,4 +130,14 @@ func (sw *syscallWrapperFuncs) setWrongListen() {
 
 func (sw *syscallWrapperFuncs) setRealListen() {
 	sw.Listen = defaultSyscallWrappers.Listen
+}
+
+func (sw *syscallWrapperFuncs) setWrongSyscall6(trap uintptr, skip int) {
+	sw.Syscall6 = errorableSyscallWrappers.Syscall6
+	sw.Syscall6Trap = trap
+	sw.Syscall6Skips = skip
+}
+
+func (sw *syscallWrapperFuncs) setRealSyscall6() {
+	sw.Syscall6 = defaultSyscallWrappers.Syscall6
 }

@@ -153,6 +153,14 @@ func Test_TCP_setupServerWorkers_2(t *testing.T) {
 	if err == nil {
 		t.Fatalf(`setupServerWorkers with wrong syscall.EpollCreate1 (skip 1) was successfull`)
 	}
+
+	SyscallWrappers.setWrongSyscall6(syscall.SYS_EPOLL_WAIT, 0)
+	conn.setupServerWorkers(1)
+	err = conn.startWorkerLoop(&conn.workerPool.epolls[0])
+	SyscallWrappers.setRealSyscall6()
+	if err == nil {
+		t.Fatalf(`setupServerWorkers with wrong syscall.Syscall6(syscall.SYS_EPOLL_WAIT) was successfull`)
+	}
 }
 
 func Test_TCP_accept(t *testing.T) {
