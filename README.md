@@ -3,4 +3,4 @@
 [![Coverage Status](https://coveralls.io/repos/github/atercattus/gonet/badge.svg?branch=master)](https://coveralls.io/github/atercattus/gonet?branch=master)
 
 # gonet
-Tuned TCP client & server for Go (epoll only).
+Tuned TCP client & server for Go (Linux/epoll only).
