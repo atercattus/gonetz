@@ -1,6 +1,8 @@
 package gonet
 
-import "sync"
+import (
+	"sync"
+)
 
 type (
 	BufChain struct {
@@ -91,6 +93,13 @@ func (bc *BufChain) Read(buf []byte) (readed int) {
 		}
 	}
 
+	// Если последний чанк прочитал полностью, то не возвращаю его в пул, а оставляю на будущее,
+	//   чтобы уменьшить число взаимодействий с sync.Pool
+	if (oldChunks > -1) && (oldChunks == len(bc.chain)-1) {
+		bc.chain[oldChunks] = bc.chain[oldChunks][:0]
+		oldChunks--
+	}
+
 	if oldChunks > -1 {
 		for i := 0; i <= oldChunks; i++ {
 			bufPool4K.Put(bc.chainIf[i])
@@ -104,9 +113,6 @@ func (bc *BufChain) Read(buf []byte) (readed int) {
 			to := len(bc.chain) - oldChunks - 1
 			bc.chain = bc.chain[:to]
 			bc.chainIf = bc.chainIf[:to]
-		} else {
-			bc.chain = bc.chain[:0]     // gc?
-			bc.chainIf = bc.chainIf[:0] // gc?
 		}
 	}
 

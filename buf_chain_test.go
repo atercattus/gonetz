@@ -13,17 +13,17 @@ func Test_BufChain_growChain(t *testing.T) {
 		bc BufChain
 	)
 
-	if l, exp := len(bc.chain), 0; l != exp {
-		t.Fatalf(`precheck expect %d got %d`, exp, l)
+	if got, exp := len(bc.chain), 0; got != exp {
+		t.Fatalf(`precheck expect %d got %d`, exp, got)
 	}
 
 	bc.growChain()
 
-	if l, exp := len(bc.chain), 1; l != exp {
-		t.Fatalf(`growChain expect %d got %d`, exp, l)
+	if got, exp := len(bc.chain), 1; got != exp {
+		t.Fatalf(`growChain expect %d got %d`, exp, got)
 	}
-	if l, exp := len(bc.chainIf), 1; l != exp {
-		t.Fatalf(`growChain expect %d got %d`, exp, l)
+	if got, exp := len(bc.chainIf), 1; got != exp {
+		t.Fatalf(`growChain expect %d got %d`, exp, got)
 	}
 
 	iters := 10
@@ -31,11 +31,11 @@ func Test_BufChain_growChain(t *testing.T) {
 		bc.growChain()
 	}
 
-	if l, exp := len(bc.chain), 1+iters; l != exp {
-		t.Fatalf(`growChain expect %d got %d`, exp, l)
+	if got, exp := len(bc.chain), 1+iters; got != exp {
+		t.Fatalf(`growChain expect %d got %d`, exp, got)
 	}
-	if l, exp := len(bc.chainIf), 1+iters; l != exp {
-		t.Fatalf(`growChain expect %d got %d`, exp, l)
+	if got, exp := len(bc.chainIf), 1+iters; got != exp {
+		t.Fatalf(`growChain expect %d got %d`, exp, got)
 	}
 }
 
@@ -45,18 +45,18 @@ func Test_BufChain_appendToLast(t *testing.T) {
 		buf = []byte(`test`)
 	)
 
-	if w, exp := bc.appendToLast(buf), 0; w != exp {
-		t.Fatalf(`appendToLast expect %d got %d`, exp, w)
+	if got, exp := bc.appendToLast(buf), 0; got != exp {
+		t.Fatalf(`appendToLast expect %d got %d`, exp, got)
 	}
 
 	bc.growChain()
 
-	if w, exp := bc.appendToLast(buf), len(buf); w != exp {
-		t.Fatalf(`appendToLast expect %d got %d`, exp, w)
+	if got, exp := bc.appendToLast(buf), len(buf); got != exp {
+		t.Fatalf(`appendToLast expect %d got %d`, exp, got)
 	}
 
-	if w, exp := bc.appendToLast(buf), len(buf); w != exp {
-		t.Fatalf(`appendToLast expect %d got %d`, exp, w)
+	if got, exp := bc.appendToLast(buf), len(buf); got != exp {
+		t.Fatalf(`appendToLast expect %d got %d`, exp, got)
 	}
 }
 
@@ -74,19 +74,19 @@ func Test_BufChain_Clean(t *testing.T) {
 
 	bc.Clean()
 
-	if w, exp := bc.totalLen, 0; w != exp {
-		t.Fatalf(`Clean bc.totalLen expect %d got %d`, exp, w)
+	if got, exp := bc.totalLen, 0; got != exp {
+		t.Fatalf(`Clean bc.totalLen expect %d got %d`, exp, got)
 	}
 
-	if w, exp := len(bc.chain), 0; w != exp {
-		t.Fatalf(`Clean len(bc.chain) expect %d got %d`, exp, w)
+	if got, exp := len(bc.chain), 0; got != exp {
+		t.Fatalf(`Clean len(bc.chain) expect %d got %d`, exp, got)
 	}
-	if w, exp := len(bc.chainIf), 0; w != exp {
-		t.Fatalf(`Clean len(bc.chain) expect %d got %d`, exp, w)
+	if got, exp := len(bc.chainIf), 0; got != exp {
+		t.Fatalf(`Clean len(bc.chain) expect %d got %d`, exp, got)
 	}
 
-	if w, exp := bc.posInFirstChunk, 0; w != exp {
-		t.Fatalf(`Clean bc.posInFirstChunk expect %d got %d`, exp, w)
+	if got, exp := bc.posInFirstChunk, 0; got != exp {
+		t.Fatalf(`Clean bc.posInFirstChunk expect %d got %d`, exp, got)
 	}
 }
 
@@ -293,8 +293,8 @@ func Test_BufChain_Read(t *testing.T) {
 			}
 		}
 
-		if w, exp := len(readedBuf), totalLen; w != exp {
-			t.Fatalf(`readed mismatch (bufSize %d): expect %d got %d`, bufSize, exp, w)
+		if got, exp := len(readedBuf), totalLen; got != exp {
+			t.Fatalf(`readed mismatch (bufSize %d): expect %d got %d`, bufSize, exp, got)
 		}
 
 		if !bytes.Equal(readedBuf, buf) {
@@ -329,8 +329,40 @@ func Test_BufChain_Read_GC(t *testing.T) {
 			}
 		}
 
-		if w, exp := readed, totalLen; w != exp {
-			t.Fatalf(`readed mismatch: expect %d got %d`, exp, w)
+		if got, exp := readed, totalLen; got != exp {
+			t.Fatalf(`readed mismatch: expect %d got %d`, exp, got)
+		}
+	}
+}
+
+func Test_BufChain_WriteRead_oneChunk(t *testing.T) {
+	// Проверка, что при чтении всех мелких записей, первый чанк будет постоянно переиспользоваться, а не убегать в пул
+
+	var (
+		bc    BufChain
+		wr    = bytes.Repeat([]byte(`helloworld`), 100)
+		wrCnt = 4
+		tmp   = make([]byte, len(wr)*wrCnt)
+
+		mults = [...]int{
+			1, // Вариант, когда вся активность помещается в один блок 1*100*4*len(`helloworld`) = 4000
+			3, // Вариант, когда активность не помещается в один блок 3*100*4*len(`helloworld`) = 12000
+		}
+	)
+
+	for _, mult := range mults {
+		for iter := 1; iter <= 3; iter++ {
+			for i := 0; i < mult*wrCnt; i++ {
+				bc.Write(wr)
+			}
+
+			for i := 0; i < mult; i++ {
+				bc.Read(tmp[:])
+			}
+
+			if got, exp := len(bc.chain), 1; got != exp {
+				t.Fatalf(`unexpected len(chain) after reading. expect %d got %d`, exp, got)
+			}
 		}
 	}
 }
