@@ -6,6 +6,18 @@ import (
 	"time"
 )
 
+func getSocketPort(fd int) int {
+	if sa, err := syscall.Getsockname(fd); err != nil {
+		return 0
+	} else if sa4, ok := sa.(*syscall.SockaddrInet4); ok {
+		return sa4.Port
+	} else if sa6, ok := sa.(*syscall.SockaddrInet6); ok {
+		return sa6.Port
+	} else {
+		return 0
+	}
+}
+
 func Test_TCP_setupAcceptAddr(t *testing.T) {
 	var conn TCPConn
 
@@ -186,7 +198,27 @@ func Test_TCP_getWorkerEPoll(t *testing.T) {
 }
 
 func Test_TCP_MakeServer(t *testing.T) {
-	// ToDo:
+	if _, err := MakeServer(`lol.kek`, 0); err == nil {
+		t.Fatalf(`MakeServer didnt failed with wrong listen addr`)
+	}
+
+	SyscallWrappers.setWrongEpollCreate1(1)
+	_, err := MakeServer(``, 0)
+	SyscallWrappers.setRealEpollCreate1()
+	if err == nil {
+		t.Fatalf(`MakeServer didnt failed with wrong syscall.EpollCreate1`)
+	}
+
+	conn, err := MakeServer(`127.0.0.1`, 0)
+	if err != nil {
+		t.Fatalf(`MakeServer failed: %s`, err)
+	}
+	defer conn.Close()
+
+	port := getSocketPort(conn.fd)
+	if port == 0 {
+		t.Fatalf(`Cannot determine test socket port`)
+	}
 }
 
 func Test_TCP_Start(t *testing.T) {
