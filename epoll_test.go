@@ -5,6 +5,14 @@ import (
 	"testing"
 )
 
+var (
+	errorableSyscallWrappers = syscallWrapperFuncs{
+		EpollCreate1: func(flag int) (fd int, err error) {
+			return 0, syscall.EINVAL
+		},
+	}
+)
+
 func Test_EPoll_InitClientEpoll(t *testing.T) {
 	var epoll EPoll
 
@@ -22,6 +30,14 @@ func Test_EPoll_InitClientEpoll(t *testing.T) {
 
 	if epoll.eventsFirstPtr == 0 {
 		t.Fatalf(`epoll.eventsFirstPtr == 0`)
+	}
+
+	// Проверка на ошибку
+	syscallWrappers.EpollCreate1 = errorableSyscallWrappers.EpollCreate1
+	err := InitClientEpoll(&epoll)
+	syscallWrappers.EpollCreate1 = defaultSyscallWrappers.EpollCreate1
+	if err == nil {
+		t.Fatalf(`InitClientEpoll didnt failed with wrong EpollCreate1`)
 	}
 }
 
@@ -46,6 +62,15 @@ func Test_EPoll_InitServerEpoll(t *testing.T) {
 		t.Fatalf(`epoll.fd == 0`)
 	}
 
+	// Проверка на ошибку
+	syscallWrappers.EpollCreate1 = errorableSyscallWrappers.EpollCreate1
+	err = InitServerEpoll(serverFd, &epoll)
+	syscallWrappers.EpollCreate1 = defaultSyscallWrappers.EpollCreate1
+	if err == nil {
+		t.Fatalf(`InitServerEpoll didnt failed with wrong EpollCreate1`)
+	}
+
+	// Проверка на закрытие дескриптора
 	syscall.Syscall(syscall.SYS_CLOSE, uintptr(serverFd), 0, 0)
 
 	if err := InitServerEpoll(serverFd, &epoll); err == nil {
