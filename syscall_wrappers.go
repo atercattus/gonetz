@@ -5,6 +5,8 @@ import (
 )
 
 type (
+	syscallCheckFunc func(data interface{}) bool
+
 	syscallWrapperFuncs struct {
 		EpollCreate1  func(flag int) (fd int, err error)
 		Socket        func(domain, typ, proto int) (fd int, err error)
@@ -15,17 +17,10 @@ type (
 		Syscall       func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno)
 		Syscall6      func(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2 uintptr, err syscall.Errno)
 
-		EpollCreate1Skips int
-		//SocketSkips        int
-		//SetNonblockSkips   int
-		SetsockoptIntSkips int
-		//BindSkips          int
-		//ListenSkips        int
-		SyscallSkips  int
-		Syscall6Skips int
-
-		SyscallTrap  uintptr
-		Syscall6Trap uintptr
+		EpollCreate1Check  syscallCheckFunc
+		SetsockoptIntCheck syscallCheckFunc
+		SyscallCheck       syscallCheckFunc
+		Syscall6Check      syscallCheckFunc
 	}
 )
 
@@ -45,9 +40,12 @@ var (
 	// Сбойные варианты функций (read-only)
 	errorableSyscallWrappers = syscallWrapperFuncs{
 		EpollCreate1: func(flag int) (fd int, err error) {
-			if SyscallWrappers.EpollCreate1Skips > 0 {
-				SyscallWrappers.EpollCreate1Skips--
-				return defaultSyscallWrappers.EpollCreate1(flag)
+			if cb := SyscallWrappers.EpollCreate1Check; cb != nil {
+				if !cb(flag) {
+					return 0, syscall.EINVAL
+				}
+			} else {
+				return 0, syscall.EINVAL
 			}
 			return 0, syscall.EINVAL
 		},
@@ -61,8 +59,11 @@ var (
 		},
 
 		SetsockoptInt: func(fd, level, opt int, value int) (err error) {
-			if SyscallWrappers.SetsockoptIntSkips > 0 {
-				SyscallWrappers.SetsockoptIntSkips--
+			if cb := SyscallWrappers.SetsockoptIntCheck; cb != nil {
+				args := []int{fd, level, opt, value}
+				if !cb(args) {
+					return syscall.EINVAL
+				}
 			} else {
 				return syscall.EINVAL
 			}
@@ -78,9 +79,11 @@ var (
 		},
 
 		Syscall: func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
-			if (SyscallWrappers.SyscallTrap != 0) && (trap != SyscallWrappers.SyscallTrap) {
-			} else if SyscallWrappers.SyscallSkips > 0 {
-				SyscallWrappers.SyscallSkips--
+			if cb := SyscallWrappers.SyscallCheck; cb != nil {
+				args := []uintptr{trap, a1, a2, a3}
+				if !cb(args) {
+					return 0, 0, syscall.EINVAL
+				}
 			} else {
 				return 0, 0, syscall.EINVAL
 			}
@@ -88,9 +91,11 @@ var (
 		},
 
 		Syscall6: func(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2 uintptr, err syscall.Errno) {
-			if (SyscallWrappers.Syscall6Trap != 0) && (trap != SyscallWrappers.Syscall6Trap) {
-			} else if SyscallWrappers.Syscall6Skips > 0 {
-				SyscallWrappers.Syscall6Skips--
+			if cb := SyscallWrappers.Syscall6Check; cb != nil {
+				args := []uintptr{trap, a1, a2, a3, a4, a5, a6}
+				if !cb(args) {
+					return 0, 0, syscall.EINVAL
+				}
 			} else {
 				return 0, 0, syscall.EINVAL
 			}
@@ -102,9 +107,54 @@ var (
 	SyscallWrappers = defaultSyscallWrappers
 )
 
-func (sw *syscallWrapperFuncs) setWrongEpollCreate1(skips int) {
+var (
+	// Запрет первых calls вызовов
+	// Если calls == 0, то запрещает все вызовы
+	CheckFuncSkipN = func(calls int, nextCheck syscallCheckFunc) syscallCheckFunc {
+		call := 0
+		return func(data interface{}) bool {
+			if calls == 0 {
+				return false
+			} else if call < calls {
+				call++
+				return false
+			}
+
+			if nextCheck != nil {
+				return nextCheck(data)
+			}
+			return true
+		}
+	}
+
+	// Запрет первых calls вызовов trap для Syscall + Syscall6
+	// Если calls == 0, то запрещает все вызовы
+	CheckFuncSyscallTrapSkipN = func(trap uintptr, calls int, nextCheck syscallCheckFunc) syscallCheckFunc {
+		call := 0
+		return func(data interface{}) bool {
+			if args, ok := data.([]uintptr); ok {
+				if len(args) > 0 {
+					if args[0] != trap {
+					} else if calls == 0 {
+						return false
+					} else if call < calls {
+						call++
+						return false
+					}
+				}
+			}
+
+			if nextCheck != nil {
+				return nextCheck(data)
+			}
+			return true
+		}
+	}
+)
+
+func (sw *syscallWrapperFuncs) setWrongEpollCreate1(checkFunc syscallCheckFunc) {
 	sw.EpollCreate1 = errorableSyscallWrappers.EpollCreate1
-	sw.EpollCreate1Skips = skips
+	sw.EpollCreate1Check = checkFunc
 }
 
 func (sw *syscallWrapperFuncs) setRealEpollCreate1() {
@@ -127,9 +177,9 @@ func (sw *syscallWrapperFuncs) setRealSetNonblock() {
 	sw.SetNonblock = defaultSyscallWrappers.SetNonblock
 }
 
-func (sw *syscallWrapperFuncs) setWrongSetsockoptInt(skip int) {
+func (sw *syscallWrapperFuncs) setWrongSetsockoptInt(checkFunc syscallCheckFunc) {
 	sw.SetsockoptInt = errorableSyscallWrappers.SetsockoptInt
-	sw.SetsockoptIntSkips = skip
+	sw.SetsockoptIntCheck = checkFunc
 }
 
 func (sw *syscallWrapperFuncs) setRealSetsockoptInt() {
@@ -152,22 +202,22 @@ func (sw *syscallWrapperFuncs) setRealListen() {
 	sw.Listen = defaultSyscallWrappers.Listen
 }
 
-func (sw *syscallWrapperFuncs) setWrongSyscall(trap uintptr, skip int) {
+func (sw *syscallWrapperFuncs) setWrongSyscall(checkFunc syscallCheckFunc) {
 	sw.Syscall = errorableSyscallWrappers.Syscall
-	sw.SyscallTrap = trap
-	sw.SyscallSkips = skip
+	sw.SyscallCheck = checkFunc
 }
 
 func (sw *syscallWrapperFuncs) setRealSyscall() {
 	sw.Syscall = defaultSyscallWrappers.Syscall
+	sw.SyscallCheck = nil
 }
 
-func (sw *syscallWrapperFuncs) setWrongSyscall6(trap uintptr, skip int) {
+func (sw *syscallWrapperFuncs) setWrongSyscall6(checkFunc syscallCheckFunc) {
 	sw.Syscall6 = errorableSyscallWrappers.Syscall6
-	sw.Syscall6Trap = trap
-	sw.Syscall6Skips = skip
+	sw.Syscall6Check = checkFunc
 }
 
 func (sw *syscallWrapperFuncs) setRealSyscall6() {
 	sw.Syscall6 = defaultSyscallWrappers.Syscall6
+	sw.Syscall6Check = nil
 }

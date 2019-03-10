@@ -73,7 +73,7 @@ func Test_TCP_makeListener_2(t *testing.T) {
 		t.Fatalf(`makeListener with wrong syscall.SetNonblock was successfull`)
 	}
 
-	SyscallWrappers.setWrongSetsockoptInt(0)
+	SyscallWrappers.setWrongSetsockoptInt(nil)
 	err = conn.makeListener(``, 0)
 	SyscallWrappers.setRealSetsockoptInt()
 	if err == nil {
@@ -155,14 +155,16 @@ func Test_TCP_setupServerWorkers_1(t *testing.T) {
 func Test_TCP_setupServerWorkers_2(t *testing.T) {
 	var conn TCPConn
 
-	SyscallWrappers.setWrongEpollCreate1(0)
+	SyscallWrappers.setWrongEpollCreate1(nil)
 	err := conn.setupServerWorkers(1)
 	SyscallWrappers.setRealEpollCreate1()
 	if err == nil {
 		t.Fatalf(`setupServerWorkers with wrong syscall.EpollCreate1 was successfull`)
 	}
 
-	SyscallWrappers.setWrongEpollCreate1(1)
+	SyscallWrappers.setWrongEpollCreate1(
+		CheckFuncSkipN(1, nil),
+	)
 	err = conn.setupServerWorkers(1)
 	SyscallWrappers.setRealEpollCreate1()
 	if err == nil {
@@ -197,7 +199,9 @@ func Test_TCP_MakeServer(t *testing.T) {
 		t.Fatalf(`MakeServer didnt failed with wrong listen addr`)
 	}
 
-	SyscallWrappers.setWrongEpollCreate1(1)
+	SyscallWrappers.setWrongEpollCreate1(
+		CheckFuncSkipN(1, nil),
+	)
 	_, err := MakeServer(``, 0)
 	SyscallWrappers.setRealEpollCreate1()
 	if err == nil {
@@ -219,7 +223,9 @@ func Test_TCP_MakeServer(t *testing.T) {
 func Test_TCP_Start_1(t *testing.T) {
 	DefaultEPollWaitTimeout = 10
 
-	SyscallWrappers.setWrongSyscall6(syscall.SYS_EPOLL_WAIT, 1)
+	SyscallWrappers.setWrongSyscall6(
+		CheckFuncSyscallTrapSkipN(syscall.SYS_EPOLL_WAIT, 1, nil),
+	)
 	defer SyscallWrappers.setRealSyscall6()
 
 	conn, err := MakeServer(`127.0.0.1`, 0)
@@ -228,8 +234,20 @@ func Test_TCP_Start_1(t *testing.T) {
 	}
 	defer conn.Close()
 
-	if err := conn.Start(); err == nil {
-		t.Fatalf(`Successfull server start with wrong syscall.Syscall6(syscall.SYS_EPOLL_WAIT)`)
+	timeLimiter := time.After(1 * time.Second)
+	success := make(chan bool, 1)
+
+	go func() {
+		success <- conn.Start() == nil
+	}()
+
+	select {
+	case <-timeLimiter:
+		success <- true
+	case succ := <-success:
+		if succ {
+			t.Fatalf(`Successfull server start with wrong syscall.Syscall6`)
+		}
 	}
 }
 
@@ -242,13 +260,16 @@ func Test_TCP_Start_2(t *testing.T) {
 
 	port := getSocketPort(conn.fd)
 	if port == 0 {
-		t.Fatalf(`Cannot determine test socket port`)
+		t.Errorf(`Cannot determine test socket port`)
+		return
 	}
 
 	timeLimiter := time.After(1 * time.Second)
 	success := make(chan bool, 1)
 	go func() {
-		SyscallWrappers.setWrongSyscall(syscall.SYS_ACCEPT, 0)
+		SyscallWrappers.setWrongSyscall(
+			CheckFuncSyscallTrapSkipN(syscall.SYS_ACCEPT, 0, nil),
+		)
 		defer SyscallWrappers.setRealSyscall()
 
 		go func() {
@@ -266,9 +287,12 @@ func Test_TCP_Start_2(t *testing.T) {
 	select {
 	case <-timeLimiter:
 		success <- false
+		t.Errorf(`Timelimit when server try to start with wrong syscall.Syscall(syscall.SYS_ACCEPT)`)
+		return
 	case succ := <-success:
 		if succ {
-			t.Fatalf(`Successfull server start with wrong syscall.Syscall(syscall.SYS_ACCEPT)`)
+			t.Errorf(`Successfull server start with wrong syscall.Syscall(syscall.SYS_ACCEPT)`)
+			return
 		}
 	}
 }
@@ -290,7 +314,7 @@ func Test_TCP_Start_3(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		SyscallWrappers.setWrongSetsockoptInt(0)
+		SyscallWrappers.setWrongSetsockoptInt(nil)
 		defer SyscallWrappers.setRealSetsockoptInt()
 
 		go func() {
@@ -310,10 +334,10 @@ func Test_TCP_Start_3(t *testing.T) {
 
 	select {
 	case <-timeLimiter:
-		success <- false
+		t.Fatalf(`Successfull server start with wrong syscall.SetsockoptInt`)
 	case succ := <-success:
 		if succ {
-			t.Fatalf(`Successfull server start with wrong syscall.Syscall(syscall.SYS_ACCEPT)`)
+			t.Fatalf(`Successfull server start with wrong syscall.SetsockoptInt`)
 		}
 	}
 }
@@ -321,7 +345,9 @@ func Test_TCP_Start_3(t *testing.T) {
 func Test_TCP_startWorkerLoop(t *testing.T) {
 	var conn TCPConn
 
-	SyscallWrappers.setWrongSyscall6(syscall.SYS_EPOLL_WAIT, 0)
+	SyscallWrappers.setWrongSyscall6(
+		CheckFuncSyscallTrapSkipN(syscall.SYS_EPOLL_WAIT, 0, nil),
+	)
 	conn.setupServerWorkers(1)
 	err := conn.startWorkerLoop(&conn.workerPool.epolls[0])
 	SyscallWrappers.setRealSyscall6()
