@@ -67,10 +67,10 @@ func (epoll *EPoll) AddClient(clientFd int) (err error) {
 	epoll.event.Events = syscall.EPOLLIN | EPOLLET // | syscall.EPOLLOUT
 	epoll.event.Fd = int32(clientFd)
 
-	if err = syscall.SetNonblock(clientFd, true); err != nil {
+	if err = SyscallWrappers.SetNonblock(clientFd, true); err != nil {
 	} else if err = syscall.EpollCtl(epoll.fd, syscall.EPOLL_CTL_ADD, clientFd, &epoll.event); err != nil {
-	} else if err = syscall.SetsockoptInt(clientFd, syscall.SOL_TCP, syscall.TCP_NODELAY, 1); err != nil {
-	} else if err = syscall.SetsockoptInt(clientFd, syscall.SOL_TCP, syscall.TCP_QUICKACK, 1); err != nil {
+	} else if err = SyscallWrappers.SetsockoptInt(clientFd, syscall.SOL_TCP, syscall.TCP_NODELAY, 1); err != nil {
+	} else if err = SyscallWrappers.SetsockoptInt(clientFd, syscall.SOL_TCP, syscall.TCP_QUICKACK, 1); err != nil {
 	} else {
 		// all ok
 		return nil

@@ -12,16 +12,19 @@ type (
 		SetsockoptInt func(fd, level, opt int, value int) (err error)
 		Bind          func(fd int, sa syscall.Sockaddr) (err error)
 		Listen        func(s int, n int) (err error)
+		Syscall       func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno)
 		Syscall6      func(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2 uintptr, err syscall.Errno)
 
 		EpollCreate1Skips int
 		//SocketSkips        int
 		//SetNonblockSkips   int
-		//SetsockoptIntSkips int
+		SetsockoptIntSkips int
 		//BindSkips          int
 		//ListenSkips        int
+		SyscallSkips  int
 		Syscall6Skips int
 
+		SyscallTrap  uintptr
 		Syscall6Trap uintptr
 	}
 )
@@ -35,6 +38,7 @@ var (
 		SetsockoptInt: syscall.SetsockoptInt,
 		Bind:          syscall.Bind,
 		Listen:        syscall.Listen,
+		Syscall:       syscall.Syscall,
 		Syscall6:      syscall.Syscall6,
 	}
 
@@ -57,7 +61,12 @@ var (
 		},
 
 		SetsockoptInt: func(fd, level, opt int, value int) (err error) {
-			return syscall.EINVAL
+			if SyscallWrappers.SetsockoptIntSkips > 0 {
+				SyscallWrappers.SetsockoptIntSkips--
+			} else {
+				return syscall.EINVAL
+			}
+			return defaultSyscallWrappers.SetsockoptInt(fd, level, opt, value)
 		},
 
 		Bind: func(fd int, sa syscall.Sockaddr) (err error) {
@@ -66,6 +75,16 @@ var (
 
 		Listen: func(s int, n int) (err error) {
 			return syscall.EINVAL
+		},
+
+		Syscall: func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
+			if (SyscallWrappers.SyscallTrap != 0) && (trap != SyscallWrappers.SyscallTrap) {
+			} else if SyscallWrappers.SyscallSkips > 0 {
+				SyscallWrappers.SyscallSkips--
+			} else {
+				return 0, 0, syscall.EINVAL
+			}
+			return defaultSyscallWrappers.Syscall(trap, a1, a2, a3)
 		},
 
 		Syscall6: func(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2 uintptr, err syscall.Errno) {
@@ -108,8 +127,9 @@ func (sw *syscallWrapperFuncs) setRealSetNonblock() {
 	sw.SetNonblock = defaultSyscallWrappers.SetNonblock
 }
 
-func (sw *syscallWrapperFuncs) setWrongSetsockoptInt() {
+func (sw *syscallWrapperFuncs) setWrongSetsockoptInt(skip int) {
 	sw.SetsockoptInt = errorableSyscallWrappers.SetsockoptInt
+	sw.SetsockoptIntSkips = skip
 }
 
 func (sw *syscallWrapperFuncs) setRealSetsockoptInt() {
@@ -130,6 +150,16 @@ func (sw *syscallWrapperFuncs) setWrongListen() {
 
 func (sw *syscallWrapperFuncs) setRealListen() {
 	sw.Listen = defaultSyscallWrappers.Listen
+}
+
+func (sw *syscallWrapperFuncs) setWrongSyscall(trap uintptr, skip int) {
+	sw.Syscall = errorableSyscallWrappers.Syscall
+	sw.SyscallTrap = trap
+	sw.SyscallSkips = skip
+}
+
+func (sw *syscallWrapperFuncs) setRealSyscall() {
+	sw.Syscall = defaultSyscallWrappers.Syscall
 }
 
 func (sw *syscallWrapperFuncs) setWrongSyscall6(trap uintptr, skip int) {

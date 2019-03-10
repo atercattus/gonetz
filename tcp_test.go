@@ -1,6 +1,9 @@
 package gonet
 
 import (
+	"net"
+	"strconv"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -70,7 +73,7 @@ func Test_TCP_makeListener_2(t *testing.T) {
 		t.Fatalf(`makeListener with wrong syscall.SetNonblock was successfull`)
 	}
 
-	SyscallWrappers.setWrongSetsockoptInt()
+	SyscallWrappers.setWrongSetsockoptInt(0)
 	err = conn.makeListener(``, 0)
 	SyscallWrappers.setRealSetsockoptInt()
 	if err == nil {
@@ -165,14 +168,6 @@ func Test_TCP_setupServerWorkers_2(t *testing.T) {
 	if err == nil {
 		t.Fatalf(`setupServerWorkers with wrong syscall.EpollCreate1 (skip 1) was successfull`)
 	}
-
-	SyscallWrappers.setWrongSyscall6(syscall.SYS_EPOLL_WAIT, 0)
-	conn.setupServerWorkers(1)
-	err = conn.startWorkerLoop(&conn.workerPool.epolls[0])
-	SyscallWrappers.setRealSyscall6()
-	if err == nil {
-		t.Fatalf(`setupServerWorkers with wrong syscall.Syscall6(syscall.SYS_EPOLL_WAIT) was successfull`)
-	}
 }
 
 func Test_TCP_accept(t *testing.T) {
@@ -221,10 +216,116 @@ func Test_TCP_MakeServer(t *testing.T) {
 	}
 }
 
-func Test_TCP_Start(t *testing.T) {
-	// ToDo:
+func Test_TCP_Start_1(t *testing.T) {
+	DefaultEPollWaitTimeout = 10
+
+	SyscallWrappers.setWrongSyscall6(syscall.SYS_EPOLL_WAIT, 1)
+	defer SyscallWrappers.setRealSyscall6()
+
+	conn, err := MakeServer(`127.0.0.1`, 0)
+	if err != nil {
+		t.Fatalf(`MakeServer failed: %s`, err)
+	}
+	defer conn.Close()
+
+	if err := conn.Start(); err == nil {
+		t.Fatalf(`Successfull server start with wrong syscall.Syscall6(syscall.SYS_EPOLL_WAIT)`)
+	}
+}
+
+func Test_TCP_Start_2(t *testing.T) {
+	conn, err := MakeServer(`127.0.0.1`, 0)
+	if err != nil {
+		t.Fatalf(`MakeServer failed: %s`, err)
+	}
+	defer conn.Close()
+
+	port := getSocketPort(conn.fd)
+	if port == 0 {
+		t.Fatalf(`Cannot determine test socket port`)
+	}
+
+	timeLimiter := time.After(1 * time.Second)
+	success := make(chan bool, 1)
+	go func() {
+		SyscallWrappers.setWrongSyscall(syscall.SYS_ACCEPT, 0)
+		defer SyscallWrappers.setRealSyscall()
+
+		go func() {
+			succ := conn.Start() == nil
+			success <- succ
+		}()
+
+		if client, err := net.Dial(`tcp`, `127.0.0.1:`+strconv.Itoa(port)); err != nil {
+		} else {
+			client.Write([]byte(`test you`))
+			client.Close()
+		}
+	}()
+
+	select {
+	case <-timeLimiter:
+		success <- false
+	case succ := <-success:
+		if succ {
+			t.Fatalf(`Successfull server start with wrong syscall.Syscall(syscall.SYS_ACCEPT)`)
+		}
+	}
+}
+
+func Test_TCP_Start_3(t *testing.T) {
+	conn, err := MakeServer(`127.0.0.1`, 0)
+	if err != nil {
+		t.Fatalf(`MakeServer failed: %s`, err)
+	}
+	defer conn.Close()
+
+	port := getSocketPort(conn.fd)
+	if port == 0 {
+		t.Fatalf(`Cannot determine test socket port`)
+	}
+
+	timeLimiter := time.After(1 * time.Second)
+	success := make(chan bool, 1)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		SyscallWrappers.setWrongSetsockoptInt(0)
+		defer SyscallWrappers.setRealSetsockoptInt()
+
+		go func() {
+			succ := conn.Start() == nil
+			success <- succ
+		}()
+
+		if client, err := net.Dial(`tcp`, `127.0.0.1:`+strconv.Itoa(port)); err != nil {
+		} else {
+			client.Write([]byte(`test you`))
+			client.Close()
+		}
+		wg.Done()
+	}()
+
+	wg.Wait()
+
+	select {
+	case <-timeLimiter:
+		success <- false
+	case succ := <-success:
+		if succ {
+			t.Fatalf(`Successfull server start with wrong syscall.Syscall(syscall.SYS_ACCEPT)`)
+		}
+	}
 }
 
 func Test_TCP_startWorkerLoop(t *testing.T) {
-	// ToDo:
+	var conn TCPConn
+
+	SyscallWrappers.setWrongSyscall6(syscall.SYS_EPOLL_WAIT, 0)
+	conn.setupServerWorkers(1)
+	err := conn.startWorkerLoop(&conn.workerPool.epolls[0])
+	SyscallWrappers.setRealSyscall6()
+	if err == nil {
+		t.Fatalf(`setupServerWorkers with wrong syscall.Syscall6(syscall.SYS_EPOLL_WAIT) was successfull`)
+	}
 }

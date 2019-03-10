@@ -2,7 +2,6 @@ package gonet
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"syscall"
 	"unsafe"
@@ -126,7 +125,7 @@ func (conn *TCPConn) setupServerWorkers(poolSize uint) (err error) {
 	return nil
 }
 
-func (conn *TCPConn) Start() {
+func (conn *TCPConn) Start() error {
 	var (
 		epoll = conn.epoll
 	)
@@ -140,8 +139,7 @@ loop:
 			if errno == syscall.EINTR {
 				continue
 			}
-			log.Println(`SYS_EPOLL_WAIT errno: `, errno)
-			break
+			return errno
 		}
 
 		for {
@@ -150,15 +148,12 @@ loop:
 				if errno == syscall.EAGAIN {
 					// обработаны все новые коннекты
 					continue loop
-				} else {
-					log.Println(`Accept errno: `, errno)
 				}
-				break
+				return errno
 			}
 
 			workerEpoll := conn.getWorkerEPoll()
 			if err := workerEpoll.AddClient(clientFd); err != nil {
-				log.Println("!socketAddClientToEpoll: ", err)
 				syscall.Syscall(syscall.SYS_CLOSE, uintptr(clientFd), 0, 0)
 			}
 		}
@@ -206,11 +201,12 @@ func (conn *TCPConn) startWorkerLoop(epoll *EPoll) error {
 						conn.close(epoll, clientFd)
 					}
 				} else if nbytes > 0 {
-					if uintptr(nbytes) == readBufLen {
-						fmt.Println(`ERROR: Max buff read!`)
-					}
+					//if uintptr(nbytes) == readBufLen {
+					//	fmt.Println(`ERROR: Max buff read!`)
+					//}
 
-					fmt.Printf("%v\n", readBuf[:nbytes])
+					// ToDo: ...
+					fmt.Printf("%v (%s)\n", readBuf[:nbytes], readBuf[:nbytes])
 				} else {
 					// соединение закрылось
 					conn.close(epoll, clientFd)
@@ -237,7 +233,7 @@ func (conn *TCPConn) Close() {
 }
 
 func (conn *TCPConn) accept() (clientFd int, errno syscall.Errno) {
-	r1, _, errno := syscall.Syscall(syscall.SYS_ACCEPT, uintptr(conn.fd), conn.acceptAddrPtr, conn.acceptAddrLenPtr)
+	r1, _, errno := SyscallWrappers.Syscall(syscall.SYS_ACCEPT, uintptr(conn.fd), conn.acceptAddrPtr, conn.acceptAddrLenPtr)
 	clientFd = int(r1)
 	return clientFd, errno
 }
