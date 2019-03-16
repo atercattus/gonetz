@@ -12,7 +12,7 @@ const (
 )
 
 type (
-	TCPConn struct {
+	TCPServer struct {
 		fd    int
 		epoll EPoll
 
@@ -36,28 +36,28 @@ var (
 	ErrWrongPoolSize = fmt.Errorf(`wrong pool size`)
 )
 
-func MakeServer(host string, port uint) (conn *TCPConn, err error) {
-	conn = &TCPConn{}
+func MakeServer(host string, port uint) (srv *TCPServer, err error) {
+	srv = &TCPServer{}
 
-	if err = conn.makeListener(host, port); err != nil {
+	if err = srv.makeListener(host, port); err != nil {
 		return nil, err
-	} else if err = conn.setupServerWorkers(1); err != nil {
-		conn.Close()
+	} else if err = srv.setupServerWorkers(1); err != nil {
+		srv.Close()
 		return nil, err
 	}
 
-	conn.setupAcceptAddr()
+	srv.setupAcceptAddr()
 
-	return conn, err
+	return srv, err
 }
 
-func (conn *TCPConn) setupAcceptAddr() {
-	conn.acceptAddrPtr = uintptr(unsafe.Pointer(&conn.acceptAddr))
-	conn.acceptAddrLen = syscall.SizeofSockaddrAny
-	conn.acceptAddrLenPtr = uintptr(unsafe.Pointer(&conn.acceptAddrLen))
+func (srv *TCPServer) setupAcceptAddr() {
+	srv.acceptAddrPtr = uintptr(unsafe.Pointer(&srv.acceptAddr))
+	srv.acceptAddrLen = syscall.SizeofSockaddrAny
+	srv.acceptAddrLenPtr = uintptr(unsafe.Pointer(&srv.acceptAddrLen))
 }
 
-func (conn *TCPConn) makeListener(listenAddr string, listenPort uint) (err error) {
+func (srv *TCPServer) makeListener(listenAddr string, listenPort uint) (err error) {
 	if listenAddr == `` {
 		listenAddr = `0.0.0.0`
 	}
@@ -81,10 +81,10 @@ func (conn *TCPConn) makeListener(listenAddr string, listenPort uint) (err error
 	} else if err = SyscallWrappers.SetsockoptInt(serverFd, syscall.SOL_TCP, syscall.TCP_QUICKACK, 1); err != nil {
 	} else if err = SyscallWrappers.Bind(serverFd, &addr); err != nil {
 	} else if err = SyscallWrappers.Listen(serverFd, maxEpollEvents); err != nil {
-	} else if err = InitServerEpoll(serverFd, &conn.epoll); err != nil {
+	} else if err = InitServerEpoll(serverFd, &srv.epoll); err != nil {
 	} else {
 		// all ok
-		conn.fd = serverFd
+		srv.fd = serverFd
 		return nil
 	}
 
@@ -94,12 +94,12 @@ func (conn *TCPConn) makeListener(listenAddr string, listenPort uint) (err error
 	return err
 }
 
-func (conn *TCPConn) setupServerWorkers(poolSize uint) (err error) {
+func (srv *TCPServer) setupServerWorkers(poolSize uint) (err error) {
 	if poolSize < 1 {
 		return ErrWrongPoolSize
 	}
 
-	pool := &conn.workerPool
+	pool := &srv.workerPool
 
 	pool.fds = make([]int, poolSize)
 	pool.epolls = make([]EPoll, poolSize)
@@ -119,15 +119,15 @@ func (conn *TCPConn) setupServerWorkers(poolSize uint) (err error) {
 			return err // Каков шанс, что тут может возникнуть ошибка?
 		}
 
-		go conn.startWorkerLoop(epoll)
+		go srv.startWorkerLoop(epoll)
 	}
 
 	return nil
 }
 
-func (conn *TCPConn) Start() error {
+func (srv *TCPServer) Start() error {
 	var (
-		epoll = conn.epoll
+		epoll = srv.epoll
 	)
 
 	//runtime.LockOSThread()
@@ -143,7 +143,7 @@ loop:
 		}
 
 		for {
-			clientFd, errno := conn.accept()
+			clientFd, errno := srv.accept()
 			if errno != 0 {
 				if errno == syscall.EAGAIN {
 					// обработаны все новые коннекты
@@ -152,7 +152,7 @@ loop:
 				return errno
 			}
 
-			workerEpoll := conn.getWorkerEPoll()
+			workerEpoll := srv.getWorkerEPoll()
 			if err := workerEpoll.AddClient(clientFd); err != nil {
 				syscall.Syscall(syscall.SYS_CLOSE, uintptr(clientFd), 0, 0)
 			}
@@ -160,15 +160,15 @@ loop:
 	}
 }
 
-func (conn *TCPConn) getWorkerEPoll() *EPoll {
-	pool := &conn.workerPool
+func (srv *TCPServer) getWorkerEPoll() *EPoll {
+	pool := &srv.workerPool
 	idx := pool.nextWorkerIdx
 	pool.nextWorkerIdx = (pool.nextWorkerIdx + 1) % len(pool.fds)
 
 	return &pool.epolls[idx]
 }
 
-func (conn *TCPConn) startWorkerLoop(epoll *EPoll) error {
+func (srv *TCPServer) startWorkerLoop(epoll *EPoll) error {
 	var (
 		readBuf    = make([]byte, 32*1024)
 		readBufPtr = uintptr(unsafe.Pointer(&readBuf[0]))
@@ -198,7 +198,7 @@ func (conn *TCPConn) startWorkerLoop(epoll *EPoll) error {
 				if errno != 0 {
 					if errno != syscall.EAGAIN { // если ошибка не про "обработаны все новые данные"
 						// syscall.EBADF, syscall.ECONNRESET, ...
-						conn.close(epoll, clientFd)
+						srv.close(epoll, clientFd)
 					}
 				} else if nbytes > 0 {
 					//if uintptr(nbytes) == readBufLen {
@@ -209,31 +209,31 @@ func (conn *TCPConn) startWorkerLoop(epoll *EPoll) error {
 					fmt.Printf("%v (%s)\n", readBuf[:nbytes], readBuf[:nbytes])
 				} else {
 					// соединение закрылось
-					conn.close(epoll, clientFd)
+					srv.close(epoll, clientFd)
 				}
 				//} else if (eventsMask & syscall.EPOLLOUT) != 0 {
 				// можно записывать (если не получилось сразу весь ответ выслать)
 				// }
 			} else if (eventsMask & (syscall.EPOLLERR | syscall.EPOLLHUP)) != 0 {
-				conn.close(epoll, clientFd)
+				srv.close(epoll, clientFd)
 			}
 		}
 	}
 }
 
-func (conn *TCPConn) close(clientEpoll *EPoll, clientFd int) {
+func (srv *TCPServer) close(clientEpoll *EPoll, clientFd int) {
 	// ToDo: стоит проверять ошибки :)
 	clientEpoll.DeleteFd(clientFd)
 	syscall.Syscall(syscall.SYS_CLOSE, uintptr(clientFd), 0, 0)
 }
 
-func (conn *TCPConn) Close() {
-	conn.close(&conn.epoll, conn.fd)
-	conn.fd = 0
+func (srv *TCPServer) Close() {
+	srv.close(&srv.epoll, srv.fd)
+	srv.fd = 0
 }
 
-func (conn *TCPConn) accept() (clientFd int, errno syscall.Errno) {
-	r1, _, errno := SyscallWrappers.Syscall(syscall.SYS_ACCEPT, uintptr(conn.fd), conn.acceptAddrPtr, conn.acceptAddrLenPtr)
+func (srv *TCPServer) accept() (clientFd int, errno syscall.Errno) {
+	r1, _, errno := SyscallWrappers.Syscall(syscall.SYS_ACCEPT, uintptr(srv.fd), srv.acceptAddrPtr, srv.acceptAddrLenPtr)
 	clientFd = int(r1)
 	return clientFd, errno
 }
