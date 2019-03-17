@@ -47,7 +47,7 @@ var (
 			} else {
 				return 0, syscall.EINVAL
 			}
-			return 0, syscall.EINVAL
+			return defaultSyscallWrappers.EpollCreate1(flag)
 		},
 
 		Socket: func(domain, typ, proto int) (fd int, err error) {

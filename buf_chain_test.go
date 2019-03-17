@@ -74,7 +74,7 @@ func Test_BufChain_Clean(t *testing.T) {
 
 	bc.Clean()
 
-	if got, exp := bc.totalLen, 0; got != exp {
+	if got, exp := bc.Len(), 0; got != exp {
 		t.Fatalf(`Clean bc.totalLen expect %d got %d`, exp, got)
 	}
 
@@ -112,8 +112,8 @@ func Test_BufChain_Write_fixed(t *testing.T) {
 		plainBuf = append(plainBuf, chunk...)
 	}
 
-	if totalLen != bc.totalLen {
-		t.Errorf(`bc.totalLen mismatch: expect %d got %d`, totalLen, bc.totalLen)
+	if totalLen != bc.Len() {
+		t.Errorf(`bc.totalLen mismatch: expect %d got %d`, totalLen, bc.Len())
 	}
 
 	for _, chunk := range bc.chain {
@@ -186,8 +186,8 @@ func Test_BufChain_Write_randSize(t *testing.T) {
 			tmpBuf = append(tmpBuf, chunk...)
 		}
 
-		if totalLen != bc.totalLen {
-			t.Fatalf(`%s: bc.totalLen mismatch: expect %d got %d`, stageInfo.name, totalLen, bc.totalLen)
+		if totalLen != bc.Len() {
+			t.Fatalf(`%s: bc.totalLen mismatch: expect %d got %d`, stageInfo.name, totalLen, bc.Len())
 		}
 
 		if len(plainBuf) != len(tmpBuf) {
@@ -252,8 +252,8 @@ func Test_BufChain_Write_goro(t *testing.T) {
 					tmpBuf = append(tmpBuf, chunk...)
 				}
 
-				if totalLen != bc.totalLen {
-					t.Fatalf(`bc.totalLen mismatch: expect %d got %d`, totalLen, bc.totalLen)
+				if totalLen != bc.Len() {
+					t.Fatalf(`bc.totalLen mismatch: expect %d got %d`, totalLen, bc.Len())
 				}
 
 				if len(plainBuf) != len(tmpBuf) {
@@ -278,13 +278,13 @@ func Test_BufChain_Read(t *testing.T) {
 	for _, bufSize := range [...]int{1, 4, 42, 123, 1024, 4 * 1024, 8 * 1024, 100500 * 1024} {
 		bc.Clean()
 		bc.Write(buf)
-		totalLen := bc.totalLen
+		totalLen := bc.Len()
 
 		tmp := make([]byte, bufSize)
 		readedBuf := make([]byte, 0, len(buf))
 
 		for {
-			w := bc.Read(tmp[:])
+			w, _ := bc.Read(tmp[:])
 			if w > 0 {
 				readedBuf = append(readedBuf, tmp[:w]...)
 			}
@@ -316,11 +316,11 @@ func Test_BufChain_Read_GC(t *testing.T) {
 
 	for iter := 0; iter < 10*1000*1000; iter++ {
 		bc.Write(buf)
-		totalLen := bc.totalLen
+		totalLen := bc.Len()
 
 		readed := 0
 		for {
-			w := bc.Read(tmp[:])
+			w, _ := bc.Read(tmp[:])
 			if w > 0 {
 				readed += w
 			}

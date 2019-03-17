@@ -104,9 +104,41 @@ func Test_EPoll_AddClient(t *testing.T) {
 	}
 
 	syscall.Syscall(syscall.SYS_CLOSE, uintptr(clientFd), 0, 0)
-
 	if err := epoll.AddClient(clientFd); err == nil {
 		t.Fatalf(`AddClient didnt failed after socket closing`)
+	}
+
+	clientFd1, err := syscall.Socket(syscall.AF_INET, syscall.O_NONBLOCK|syscall.SOCK_STREAM, 0)
+	if err != nil {
+		t.Fatalf(`cannot create test socket: %s`, err)
+	}
+	defer syscall.Syscall(syscall.SYS_CLOSE, uintptr(clientFd1), 0, 0)
+
+	SyscallWrappers.setWrongSetsockoptInt(nil)
+	err = epoll.AddClient(clientFd1)
+	SyscallWrappers.setRealSetsockoptInt()
+	if err == nil {
+		t.Errorf(`Successfull AddClient with wrong SetsockoptInt#1`)
+		return
+	}
+
+	clientFd2, err := syscall.Socket(syscall.AF_INET, syscall.O_NONBLOCK|syscall.SOCK_STREAM, 0)
+	if err != nil {
+		t.Fatalf(`cannot create test socket: %s`, err)
+	}
+	defer syscall.Syscall(syscall.SYS_CLOSE, uintptr(clientFd2), 0, 0)
+
+	SyscallWrappers.setWrongSetsockoptInt(func(data interface{}) bool {
+		if ints, ok := data.([]int); ok && len(ints) > 3 {
+			return ints[2] != syscall.TCP_QUICKACK
+		}
+		return true
+	})
+	err = epoll.AddClient(clientFd2)
+	SyscallWrappers.setRealSetsockoptInt()
+	if err == nil {
+		t.Errorf(`Successfull AddClient with wrong SetsockoptInt#2`)
+		return
 	}
 }
 

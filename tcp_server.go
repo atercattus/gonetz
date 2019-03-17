@@ -3,6 +3,7 @@ package gonet
 import (
 	"fmt"
 	"net"
+	"runtime"
 	"syscall"
 	"unsafe"
 )
@@ -12,9 +13,12 @@ const (
 )
 
 type (
+	ConnEvent func(conn *TCPConn) bool
+
 	TCPServer struct {
-		fd    int
-		epoll EPoll
+		closed bool
+		fd     int
+		epoll  EPoll
 
 		workerPool WorkerPool
 
@@ -22,6 +26,10 @@ type (
 		acceptAddrPtr    uintptr
 		acceptAddrLen    uint32
 		acceptAddrLenPtr uintptr
+
+		clients map[int]*TCPConn
+		rdEvent ConnEvent
+		wrEvent ConnEvent
 	}
 
 	WorkerPool struct {
@@ -48,8 +56,18 @@ func MakeServer(host string, port uint) (srv *TCPServer, err error) {
 
 	srv.setupAcceptAddr()
 
+	srv.clients = make(map[int]*TCPConn)
+
 	return srv, err
 }
+
+func (srv *TCPServer) OnClientRead(event ConnEvent) {
+	srv.rdEvent = event
+}
+
+//func (srv *TCPServer) OnClientWrite(event ConnEvent) {
+//	srv.wrEvent = event
+//}
 
 func (srv *TCPServer) setupAcceptAddr() {
 	srv.acceptAddrPtr = uintptr(unsafe.Pointer(&srv.acceptAddr))
@@ -107,17 +125,12 @@ func (srv *TCPServer) setupServerWorkers(poolSize uint) (err error) {
 	for i := 0; i < int(poolSize); i++ {
 		i := i
 
-		epollFd, err := SyscallWrappers.EpollCreate1(0)
-		if err != nil {
-			return err // Каков шанс, что тут может возникнуть ошибка?
-		}
-		pool.fds[i] = epollFd
-
 		epoll := &pool.epolls[i]
 
 		if err = InitClientEpoll(epoll); err != nil {
-			return err // Каков шанс, что тут может возникнуть ошибка?
+			return err
 		}
+		pool.fds[i] = epoll.fd
 
 		go srv.startWorkerLoop(epoll)
 	}
@@ -130,13 +143,12 @@ func (srv *TCPServer) Start() error {
 		epoll = srv.epoll
 	)
 
-	//runtime.LockOSThread()
-
 loop:
-	for {
+	for !srv.closed {
 		_, errno := epoll.Wait()
 		if errno != 0 {
 			if errno == syscall.EINTR {
+				runtime.Gosched()
 				continue
 			}
 			return errno
@@ -155,9 +167,15 @@ loop:
 			workerEpoll := srv.getWorkerEPoll()
 			if err := workerEpoll.AddClient(clientFd); err != nil {
 				syscall.Syscall(syscall.SYS_CLOSE, uintptr(clientFd), 0, 0)
+			} else {
+				var conn TCPConn
+				conn.fd = clientFd
+				srv.clients[clientFd] = &conn
 			}
 		}
 	}
+
+	return nil
 }
 
 func (srv *TCPServer) getWorkerEPoll() *EPoll {
@@ -175,16 +193,17 @@ func (srv *TCPServer) startWorkerLoop(epoll *EPoll) error {
 		readBufLen = uintptr(len(readBuf))
 	)
 
-	//runtime.LockOSThread()
-
 	for {
 		nEvents, errno := epoll.Wait()
-
 		if errno != 0 {
 			if errno == syscall.EINTR {
+				runtime.Gosched()
 				continue
 			}
 			return errno
+		} else if nEvents == 0 {
+			runtime.Gosched()
+			continue
 		}
 
 		for ev := 0; ev < nEvents; ev++ {
@@ -201,12 +220,12 @@ func (srv *TCPServer) startWorkerLoop(epoll *EPoll) error {
 						srv.close(epoll, clientFd)
 					}
 				} else if nbytes > 0 {
-					//if uintptr(nbytes) == readBufLen {
-					//	fmt.Println(`ERROR: Max buff read!`)
-					//}
-
-					// ToDo: ...
-					fmt.Printf("%v (%s)\n", readBuf[:nbytes], readBuf[:nbytes])
+					if srv.rdEvent != nil {
+						if conn, ok := srv.clients[clientFd]; ok {
+							conn.RdBuf.Write(readBuf[:nbytes])
+							srv.rdEvent(conn)
+						}
+					}
 				} else {
 					// соединение закрылось
 					srv.close(epoll, clientFd)
@@ -222,12 +241,24 @@ func (srv *TCPServer) startWorkerLoop(epoll *EPoll) error {
 }
 
 func (srv *TCPServer) close(clientEpoll *EPoll, clientFd int) {
+	conn, ok := srv.clients[clientFd]
+	if ok {
+		conn.RdBuf.Clean()
+		conn.WrBuf.Clean()
+		delete(srv.clients, clientFd)
+	}
+
 	// ToDo: стоит проверять ошибки :)
 	clientEpoll.DeleteFd(clientFd)
 	syscall.Syscall(syscall.SYS_CLOSE, uintptr(clientFd), 0, 0)
+
+	for _, epoll := range srv.workerPool.epolls {
+		syscall.Syscall(syscall.SYS_CLOSE, uintptr(epoll.fd), 0, 0)
+	}
 }
 
 func (srv *TCPServer) Close() {
+	srv.closed = true
 	srv.close(&srv.epoll, srv.fd)
 	srv.fd = 0
 }

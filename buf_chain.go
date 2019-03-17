@@ -21,8 +21,13 @@ var (
 	}
 )
 
-func (bc *BufChain) Write(buf []byte) {
-	bc.totalLen += len(buf)
+func (bc *BufChain) Len() int {
+	return bc.totalLen
+}
+
+func (bc *BufChain) Write(buf []byte) (n int, err error) {
+	n = len(buf)
+	bc.totalLen += n
 
 	for len(buf) > 0 {
 		if w := bc.appendToLast(buf); w > 0 {
@@ -34,6 +39,8 @@ func (bc *BufChain) Write(buf []byte) {
 
 		bc.growChain()
 	}
+
+	return
 }
 
 func (bc *BufChain) growChain() {
@@ -66,7 +73,7 @@ func (bc *BufChain) appendToLast(buf []byte) int {
 	return len(buf)
 }
 
-func (bc *BufChain) Read(buf []byte) (readed int) {
+func (bc *BufChain) Read(buf []byte) (n int, err error) {
 	var (
 		bufPos    int
 		bufLen    = len(buf)
@@ -78,7 +85,7 @@ func (bc *BufChain) Read(buf []byte) (readed int) {
 		rdd := copy(buf[bufPos:], ch)
 
 		if rdd > 0 {
-			readed += rdd
+			n += rdd
 			bc.totalLen -= rdd
 
 			if bc.posInFirstChunk += rdd; bc.posInFirstChunk >= len(chunk) {
@@ -116,7 +123,7 @@ func (bc *BufChain) Read(buf []byte) (readed int) {
 		}
 	}
 
-	return readed
+	return
 }
 
 func (bc *BufChain) Clean() {

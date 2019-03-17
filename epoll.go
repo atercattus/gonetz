@@ -24,7 +24,7 @@ type (
 )
 
 var (
-	DefaultEPollWaitTimeout = -1
+	DefaultEPollWaitTimeout = 10 // msec
 )
 
 func InitClientEpoll(epoll *EPoll) (err error) {
