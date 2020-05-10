@@ -126,7 +126,7 @@ func Test_EPoll_AddClient2(t *testing.T) {
 	err = epoll.AddClient(clientFd)
 	syscallWrappers.setRealSetsockoptInt()
 	if err == nil {
-		t.Errorf(`Successfull AddClient with wrong SetsockoptInt`)
+		t.Errorf(`Successful AddClient with wrong SetsockoptInt`)
 		return
 	}
 }
@@ -153,7 +153,7 @@ func Test_EPoll_AddClient3(t *testing.T) {
 	err = epoll.AddClient(clientFd)
 	syscallWrappers.setRealSetsockoptInt()
 	if err == nil {
-		t.Errorf(`Successfull AddClient with wrong SetsockoptInt`)
+		t.Errorf(`Successful AddClient with wrong SetsockoptInt`)
 		return
 	}
 }

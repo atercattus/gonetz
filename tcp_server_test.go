@@ -43,7 +43,7 @@ func Test_TCPServer_newListenerIPv4_1(t *testing.T) {
 	var srv TCPServer
 
 	if err := srv.newListenerIPv4(`lol.kek`, 0); err == nil {
-		t.Fatalf(`newListenerIPv4 for wrong host was successfull`)
+		t.Fatalf(`newListenerIPv4 for wrong host was successful`)
 	} else if err != ErrWrongHost {
 		t.Fatalf(`newListenerIPv4 for wrong host returned wrong error`)
 	}
@@ -64,35 +64,35 @@ func Test_TCPServer_newListenerIPv4_2(t *testing.T) {
 	err := srv.newListenerIPv4(``, 0)
 	syscallWrappers.setRealSocket()
 	if err == nil {
-		t.Fatalf(`newListenerIPv4 with wrong syscall.Socket was successfull`)
+		t.Fatalf(`newListenerIPv4 with wrong syscall.Socket was successful`)
 	}
 
 	syscallWrappers.setWrongSetNonblock()
 	err = srv.newListenerIPv4(``, 0)
 	syscallWrappers.setRealSetNonblock()
 	if err == nil {
-		t.Fatalf(`newListenerIPv4 with wrong syscall.SetNonblock was successfull`)
+		t.Fatalf(`newListenerIPv4 with wrong syscall.SetNonblock was successful`)
 	}
 
 	syscallWrappers.setWrongSetsockoptInt(nil)
 	err = srv.newListenerIPv4(``, 0)
 	syscallWrappers.setRealSetsockoptInt()
 	if err == nil {
-		t.Fatalf(`newListenerIPv4 with wrong syscall.SetsockoptInt was successfull`)
+		t.Fatalf(`newListenerIPv4 with wrong syscall.SetsockoptInt was successful`)
 	}
 
 	syscallWrappers.setWrongBind()
 	err = srv.newListenerIPv4(``, 0)
 	syscallWrappers.setRealBind()
 	if err == nil {
-		t.Fatalf(`newListenerIPv4 with wrong syscall.Bind was successfull`)
+		t.Fatalf(`newListenerIPv4 with wrong syscall.Bind was successful`)
 	}
 
 	syscallWrappers.setWrongListen()
 	err = srv.newListenerIPv4(``, 0)
 	syscallWrappers.setRealListen()
 	if err == nil {
-		t.Fatalf(`newListenerIPv4 with wrong syscall.Listen was successfull`)
+		t.Fatalf(`newListenerIPv4 with wrong syscall.Listen was successful`)
 	}
 }
 
@@ -175,7 +175,7 @@ func Test_TCPServer_setupServerWorkers_2(t *testing.T) {
 	err := srv.setupServerWorkers(1)
 	syscallWrappers.setRealEpollCreate1()
 	if err == nil {
-		t.Errorf(`setupServerWorkers with wrong syscall.EpollCreate1 was successfull`)
+		t.Errorf(`setupServerWorkers with wrong syscall.EpollCreate1 was successful`)
 		return
 	}
 
@@ -185,7 +185,7 @@ func Test_TCPServer_setupServerWorkers_2(t *testing.T) {
 	err = srv.setupServerWorkers(1)
 	syscallWrappers.setRealEpollCreate1()
 	if err == nil {
-		t.Errorf(`setupServerWorkers with wrong syscall.EpollCreate1 (skip 1) was successfull`)
+		t.Errorf(`setupServerWorkers with wrong syscall.EpollCreate1 (skip 1) was successful`)
 		return
 	}
 }
@@ -242,7 +242,7 @@ func Test_TCPServer_NewServer_4(t *testing.T) {
 	syscallWrappers.setRealEpollCreate1()
 	if err == nil {
 		//srv.Close()
-		t.Errorf(`Successfull NewServer with wrong EpollCreate1`)
+		t.Errorf(`Successful NewServer with wrong EpollCreate1`)
 	}
 }
 
@@ -278,7 +278,7 @@ func Test_TCPServer_Start_1(t *testing.T) {
 		success <- false
 	case succ := <-success:
 		if succ {
-			t.Errorf(`Successfull server start with wrong syscall.Syscall6`)
+			t.Errorf(`Successful server start with wrong syscall.Syscall6`)
 		}
 	}
 }
@@ -301,7 +301,7 @@ func Test_TCPServer_Start_2(t *testing.T) {
 	err = srv.Start()
 	syscallWrappers.setRealSyscall6()
 	if err == nil {
-		t.Errorf(`Successfull Start with wrong Syscall6`)
+		t.Errorf(`Successful Start with wrong Syscall6`)
 		return
 	}
 }
@@ -498,6 +498,6 @@ func Test_TCPServer_startWorkerLoop(t *testing.T) {
 	}
 
 	if err := srv.startWorkerLoop(&srv.workerPool.epolls[0]); err == nil {
-		t.Errorf(`startWorkerLoop with wrong syscall.Syscall6(syscall.SYS_EPOLL_WAIT) was successfull`)
+		t.Errorf(`startWorkerLoop with wrong syscall.Syscall6(syscall.SYS_EPOLL_WAIT) was successful`)
 	}
 }
