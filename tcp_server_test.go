@@ -306,16 +306,26 @@ func Test_TCPServer_Start_2(t *testing.T) {
 	}
 }
 
+// Тест на TCPServer.Start где accept возвращает ошибку, отличную от EAGAIN
 func Test_TCPServer_Start_3(t *testing.T) {
 	srv, err := NewServer(`127.0.0.1`, 0)
 	if err != nil {
 		t.Errorf(`NewServer failed: %s`, err)
 		return
 	}
-	//defer srv.Close()
+
+	port := getSocketPort(srv.fd)
+	if port == 0 {
+		t.Errorf(`Cannot determine test socket port`)
+		return
+	}
 
 	call := 0
 	syscallWrappers.Syscall = func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
+		if trap != syscall.SYS_ACCEPT {
+			return syscall.Syscall(trap, a1, a2, a3)
+		}
+
 		if call++; call <= 1 {
 			return 0, 0, syscall.EAGAIN
 		}
@@ -323,15 +333,18 @@ func Test_TCPServer_Start_3(t *testing.T) {
 	}
 	defer syscallWrappers.setRealSyscall()
 
-	errCh := make(chan error, 1)
 	go func() {
-		errCh <- srv.Start()
+		if err := srv.Start(); err != nil {
+			t.Errorf(`Could not Start: %s`, err)
+		}
 	}()
 
-	select {
-	case <-errCh:
-	case <-time.After(2 * time.Second):
-		t.Errorf(`Timeout when server started`)
+	time.Sleep(100 * time.Millisecond) // Даю srv.Start() пройти хотя бы одну итерацию
+
+	if client, err := net.DialTimeout(`tcp`, `127.0.0.1:`+strconv.Itoa(port), 1*time.Second); err != nil {
+		t.Errorf(`Could not dial to server: %s`, err)
+	} else {
+		_ = client.Close()
 	}
 }
 
@@ -391,32 +404,12 @@ func Test_TCPServer_Start_5(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond) // для srv.Start()
 
-	call := 0
-	syscallWrappers.Syscall = func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
-		if trap != syscall.SYS_READ {
-			return syscall.Syscall(trap, a1, a2, a3)
-		} else if call++; call <= 1 {
-			return 0, 0, syscall.EAGAIN
-		}
-		return 0, 0, syscall.EBADF
-	}
-	defer syscallWrappers.setRealSyscall()
-
-	var errGot error
-
-	if client, err := net.DialTimeout(`tcp`, `127.0.0.1:`+strconv.Itoa(port), 1*time.Second); err != nil {
-		errGot = err
-	} else {
-		if _, err := client.Write([]byte(`test data`)); err != nil {
-			errGot = err
-		} else {
-			time.Sleep(100 * time.Millisecond) // Чтобы сервер успел получить данные
-			_ = client.Close()
-		}
-	}
-
-	if errGot == nil {
-		t.Errorf(`Successfull client logic with wrong Syscall(SYS_READ)`)
+	if client, err := net.DialTimeout(`tcp`, `127.0.0.1:`+strconv.Itoa(port), 1*time.Second); err == nil {
+		_, _ = client.Write([]byte(`test data`))
+		time.Sleep(100 * time.Millisecond)
+		_, _ = client.Write([]byte(`test data`))
+		time.Sleep(100 * time.Millisecond)
+		_ = client.Close()
 	}
 }
 

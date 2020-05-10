@@ -173,7 +173,8 @@ loop:
 					// обработаны все новые коннекты
 					continue loop
 				}
-				return errno
+				// ToDo: log
+				continue
 			}
 
 			workerEpoll := srv.getWorkerEPoll()
