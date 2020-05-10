@@ -5,6 +5,7 @@ import (
 )
 
 type (
+	// BufChain - это цепочка буферов для хранения потоковых данных
 	BufChain struct {
 		chain           [][]byte
 		chainIf         []interface{}
@@ -21,11 +22,14 @@ var (
 	}
 )
 
+// Len возвращает количество записанных, но еще не прочитанных байт во всей цепочке буферов
+//   (т.е. столько еще можно вычитать через Read)
 func (bc *BufChain) Len() int {
 	return bc.totalLen
 }
 
-// Write никогда не возвращает error
+// Write реализует io.Writer.
+// Никогда не возвращает error
 func (bc *BufChain) Write(buf []byte) (n int, _ error) {
 	n = len(buf)
 	bc.totalLen += n
@@ -74,7 +78,8 @@ func (bc *BufChain) appendToLast(buf []byte) int {
 	return len(buf)
 }
 
-// Read никогда не возвращает error
+// Read реализует io.Reader.
+// Никогда не возвращает error
 func (bc *BufChain) Read(buf []byte) (n int, _ error) {
 	var (
 		bufPos    int
@@ -128,6 +133,7 @@ func (bc *BufChain) Read(buf []byte) (n int, _ error) {
 	return
 }
 
+// Clean очищает внутренние буферы, чтобы перевести буфер в изначальное состояние.
 func (bc *BufChain) Clean() {
 	for _, chunkIf := range bc.chainIf {
 		bufPool4K.Put(chunkIf)

@@ -7,12 +7,16 @@ import (
 
 const (
 	maxEpollEvents = 2048
-	EPOLLET        = 1 << 31 // У syscall.EPOLLET неудобный тип
+
+	// EPOLLET в syscall имеет неудобный тип, так что завожу свою константу
+	EPOLLET = 1 << 31
 )
 
 type (
+	// Millisecond - тип для хранения времени в миллисекундах
 	Millisecond int
 
+	// EPoll реализует фукционал работы с одним epoll (и клиент и сервер)
 	EPoll struct {
 		fd    int
 		event syscall.EpollEvent
@@ -26,9 +30,11 @@ type (
 )
 
 var (
+	// DefaultEPollWaitTimeout можно менять для изменения максимальной паузы при вызовах EPoll.Wait
 	DefaultEPollWaitTimeout = Millisecond(10)
 )
 
+// InitClientEpoll настраивает новый клиентский epoll
 func InitClientEpoll(epoll *EPoll) (err error) {
 	epoll.fd, err = syscallWrappers.EpollCreate1(0)
 	if err != nil {
@@ -44,6 +50,7 @@ func InitClientEpoll(epoll *EPoll) (err error) {
 	return nil
 }
 
+// InitServerEpoll настраивает новый серверный epoll поверх слушающего сокета serverFd
 func InitServerEpoll(serverFd int, epoll *EPoll) (err error) {
 	if err = InitClientEpoll(epoll); err != nil {
 		return err
@@ -61,10 +68,12 @@ func InitServerEpoll(serverFd int, epoll *EPoll) (err error) {
 	return nil
 }
 
+// DeleteFd удаляет дескриптор fd из пула
 func (epoll *EPoll) DeleteFd(fd int) (err error) {
 	return syscall.EpollCtl(epoll.fd, syscall.EPOLL_CTL_DEL, fd, nil)
 }
 
+// AddClient добавляет нового клиента в серверный пул
 func (epoll *EPoll) AddClient(clientFd int) (err error) {
 	epoll.event.Events = syscall.EPOLLIN | EPOLLET // | syscall.EPOLLOUT
 	epoll.event.Fd = int32(clientFd)
@@ -80,6 +89,7 @@ func (epoll *EPoll) AddClient(clientFd int) (err error) {
 	return err
 }
 
+// Wait блокируется до наступления события на любом из сокетов в пузе, либо на время epoll.WaitTimeout
 func (epoll *EPoll) Wait() (nEvents int, errno syscall.Errno) {
 	r1, _, errno := syscallWrappers.Syscall6(
 		syscall.SYS_EPOLL_WAIT,

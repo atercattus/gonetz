@@ -108,9 +108,9 @@ var (
 )
 
 var (
-	// Запрет первых calls вызовов
+	// Запрещает первые calls вызовов.
 	// Если calls == 0, то запрещает все вызовы
-	CheckFuncSkipN = func(calls int, nextCheck syscallCheckFunc) syscallCheckFunc {
+	checkFuncSkipN = func(calls int, nextCheck syscallCheckFunc) syscallCheckFunc {
 		call := 0
 		return func(data interface{}) bool {
 			if calls == 0 {
@@ -127,9 +127,9 @@ var (
 		}
 	}
 
-	// Запрет первых calls вызовов trap для Syscall + Syscall6
+	// Запрещает первые calls вызовов trap для Syscall + Syscall6.
 	// Если calls == 0, то запрещает все вызовы
-	CheckFuncSyscallTrapSkipN = func(trap uintptr, calls int, nextCheck syscallCheckFunc) syscallCheckFunc {
+	checkFuncSyscallTrapSkipN = func(trap uintptr, calls int, nextCheck syscallCheckFunc) syscallCheckFunc {
 		call := 0
 		return func(data interface{}) bool {
 			if args, ok := data.([]uintptr); ok {

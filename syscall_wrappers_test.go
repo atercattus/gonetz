@@ -6,25 +6,25 @@ import (
 )
 
 func Test_SyscallWrappers_CheckFuncSkipN(t *testing.T) {
-	cb := CheckFuncSkipN(0, nil)
+	cb := checkFuncSkipN(0, nil)
 	for i := 0; i < 10; i++ {
 		if cb(nil) != false {
-			t.Errorf(`CheckFuncSkipN(0) returns true`)
+			t.Errorf(`checkFuncSkipN(0) returns true`)
 			break
 		}
 	}
 
 	for skip := 1; skip <= 3; skip++ {
-		cb := CheckFuncSkipN(skip, nil)
+		cb := checkFuncSkipN(skip, nil)
 		for i := 0; i < skip; i++ {
 			if cb(nil) != false {
-				t.Errorf(`CheckFuncSkipN(%d) return true for %dth call`, skip, i)
+				t.Errorf(`checkFuncSkipN(%d) return true for %dth call`, skip, i)
 				break
 			}
 		}
 		for i := 0; i < 10; i++ {
 			if cb(nil) != true {
-				t.Errorf(`CheckFuncSkipN(%d) returns false for non %dth calls`, skip, i)
+				t.Errorf(`checkFuncSkipN(%d) returns false for non %dth calls`, skip, i)
 				break
 			}
 		}
@@ -45,14 +45,14 @@ func Test_SyscallWrappers_CheckFuncSkipN(t *testing.T) {
 		return true
 	}
 
-	cb1 := CheckFuncSkipN(1, nextCb)
+	cb1 := checkFuncSkipN(1, nextCb)
 	cb1(nextCbData) // skip first call
 	for i := 1; i <= 10; i++ {
 		if cb1(nextCbData) != true {
-			t.Errorf(`CheckFuncSkipN() returns true`)
+			t.Errorf(`checkFuncSkipN() returns true`)
 			break
 		} else if calls != i {
-			t.Errorf(`CheckFuncSkipN() nextCheck call count differs from expected. Exp %d got %d`, i, calls)
+			t.Errorf(`checkFuncSkipN() nextCheck call count differs from expected. Exp %d got %d`, i, calls)
 			break
 		}
 	}
@@ -61,35 +61,35 @@ func Test_SyscallWrappers_CheckFuncSkipN(t *testing.T) {
 func Test_SyscallWrappers_CheckFuncSyscallTrapSkipN(t *testing.T) {
 	dataCb := (interface{})([]uintptr{syscall.SYS_EPOLL_WAIT})
 
-	if cb := CheckFuncSyscallTrapSkipN(syscall.SYS_EPOLL_WAIT, 0, nil); true {
+	if cb := checkFuncSyscallTrapSkipN(syscall.SYS_EPOLL_WAIT, 0, nil); true {
 		for i := 0; i < 10; i++ {
 			if cb(dataCb) != false {
-				t.Errorf(`CheckFuncSyscallTrapSkipN(syscall.SYS_EPOLL_WAIT, 0) returns true`)
+				t.Errorf(`checkFuncSyscallTrapSkipN(syscall.SYS_EPOLL_WAIT, 0) returns true`)
 				break
 			}
 		}
 	}
 
-	if cb := CheckFuncSyscallTrapSkipN(1, 0, nil); true {
+	if cb := checkFuncSyscallTrapSkipN(1, 0, nil); true {
 		for i := 0; i < 10; i++ {
 			if cb(dataCb) != true {
-				t.Errorf(`CheckFuncSyscallTrapSkipN(1, 0) returns false`)
+				t.Errorf(`checkFuncSyscallTrapSkipN(1, 0) returns false`)
 				break
 			}
 		}
 	}
 
 	for skip := 1; skip <= 3; skip++ {
-		cb := CheckFuncSyscallTrapSkipN(syscall.SYS_EPOLL_WAIT, skip, nil)
+		cb := checkFuncSyscallTrapSkipN(syscall.SYS_EPOLL_WAIT, skip, nil)
 		for i := 0; i < skip; i++ {
 			if cb(dataCb) != false {
-				t.Errorf(`CheckFuncSyscallTrapSkipN(%d) return true for %dth call`, skip, i)
+				t.Errorf(`checkFuncSyscallTrapSkipN(%d) return true for %dth call`, skip, i)
 				break
 			}
 		}
 		for i := 0; i < 10; i++ {
 			if cb(dataCb) != true {
-				t.Errorf(`CheckFuncSyscallTrapSkipN(%d) returns false for non %dth calls`, skip, i)
+				t.Errorf(`checkFuncSyscallTrapSkipN(%d) returns false for non %dth calls`, skip, i)
 				break
 			}
 		}
@@ -109,14 +109,14 @@ func Test_SyscallWrappers_CheckFuncSyscallTrapSkipN(t *testing.T) {
 		return true
 	}
 
-	cb1 := CheckFuncSyscallTrapSkipN(syscall.SYS_EPOLL_WAIT, 1, nextCb)
+	cb1 := checkFuncSyscallTrapSkipN(syscall.SYS_EPOLL_WAIT, 1, nextCb)
 	cb1(dataCb) // skip first call
 	for i := 1; i <= 10; i++ {
 		if cb1(dataCb) != true {
-			t.Errorf(`CheckFuncSyscallTrapSkipN() returns true`)
+			t.Errorf(`checkFuncSyscallTrapSkipN() returns true`)
 			break
 		} else if calls != i {
-			t.Errorf(`CheckFuncSyscallTrapSkipN() nextCheck call count differs from expected. Exp %d got %d`, i, calls)
+			t.Errorf(`checkFuncSyscallTrapSkipN() nextCheck call count differs from expected. Exp %d got %d`, i, calls)
 			break
 		}
 	}
@@ -130,7 +130,7 @@ func Test_SyscallWrappers_EpollCreate1(t *testing.T) {
 	}
 	syscallWrappers.setRealEpollCreate1()
 
-	syscallWrappers.setWrongEpollCreate1(CheckFuncSkipN(0, nil))
+	syscallWrappers.setWrongEpollCreate1(checkFuncSkipN(0, nil))
 	_, errno = syscallWrappers.EpollCreate1(0)
 	if errno != syscall.EINVAL {
 		t.Errorf(`Wrong errno (with checkFunc)`)
@@ -173,7 +173,7 @@ func Test_SyscallWrappers_SetsockoptInt(t *testing.T) {
 	}
 	syscallWrappers.setRealSetsockoptInt()
 
-	syscallWrappers.setWrongSetsockoptInt(CheckFuncSkipN(0, nil))
+	syscallWrappers.setWrongSetsockoptInt(checkFuncSkipN(0, nil))
 	errno = errorableSyscallWrappers.SetsockoptInt(0, 0, 0, 0)
 	if errno != syscall.EINVAL {
 		t.Errorf(`Wrong errno (with checkFunc)`)
@@ -216,7 +216,7 @@ func Test_SyscallWrappers_Syscall(t *testing.T) {
 	}
 	syscallWrappers.setRealSyscall()
 
-	syscallWrappers.setWrongSyscall(CheckFuncSkipN(0, nil))
+	syscallWrappers.setWrongSyscall(checkFuncSkipN(0, nil))
 	_, _, errno = errorableSyscallWrappers.Syscall(1, 2, 3, 4)
 	if errno != syscall.EINVAL {
 		t.Errorf(`Wrong errno (with checkFunc)`)
@@ -241,7 +241,7 @@ func Test_SyscallWrappers_Syscall6(t *testing.T) {
 	}
 	syscallWrappers.setRealSyscall6()
 
-	syscallWrappers.setWrongSyscall6(CheckFuncSkipN(0, nil))
+	syscallWrappers.setWrongSyscall6(checkFuncSkipN(0, nil))
 	_, _, errno = errorableSyscallWrappers.Syscall6(1, 2, 3, 4, 5, 6, 7)
 	if errno != syscall.EINVAL {
 		t.Errorf(`Wrong errno (with checkFunc)`)

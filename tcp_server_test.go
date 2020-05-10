@@ -180,7 +180,7 @@ func Test_TCPServer_setupServerWorkers_2(t *testing.T) {
 	}
 
 	syscallWrappers.setWrongEpollCreate1(
-		CheckFuncSkipN(1, nil),
+		checkFuncSkipN(1, nil),
 	)
 	err = srv.setupServerWorkers(1)
 	syscallWrappers.setRealEpollCreate1()
@@ -209,7 +209,7 @@ func Test_TCPServer_NewServer_1(t *testing.T) {
 
 func Test_TCPServer_NewServer_2(t *testing.T) {
 	syscallWrappers.setWrongEpollCreate1(
-		CheckFuncSkipN(1, nil),
+		checkFuncSkipN(1, nil),
 	)
 	_, err := NewServer(``, 0)
 	syscallWrappers.setRealEpollCreate1()
@@ -254,7 +254,7 @@ func Test_TCPServer_Start_1(t *testing.T) {
 	}()
 
 	syscallWrappers.setWrongSyscall6(
-		CheckFuncSyscallTrapSkipN(syscall.SYS_EPOLL_WAIT, 1, nil),
+		checkFuncSyscallTrapSkipN(syscall.SYS_EPOLL_WAIT, 1, nil),
 	)
 	defer syscallWrappers.setRealSyscall6()
 
@@ -496,7 +496,7 @@ func Test_TCPServer_startWorkerLoop(t *testing.T) {
 	var srv TCPServer
 
 	syscallWrappers.setWrongSyscall6(
-		CheckFuncSyscallTrapSkipN(syscall.SYS_EPOLL_WAIT, 0, nil),
+		checkFuncSyscallTrapSkipN(syscall.SYS_EPOLL_WAIT, 0, nil),
 	)
 	defer syscallWrappers.setRealSyscall6()
 

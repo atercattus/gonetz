@@ -13,14 +13,16 @@ const (
 )
 
 type (
+	// ConnEvent - это callback на собыия на сокете (пок что только на чтение (OnClientRead))
 	ConnEvent func(conn *TCPConn) bool
 
+	// TCPServer реализует TPC сервер
 	TCPServer struct {
 		closed bool
 		fd     int
 		epoll  EPoll
 
-		workerPool WorkerPool
+		workerPool workerPool
 
 		acceptAddr struct {
 			syscall.RawSockaddrAny
@@ -34,7 +36,7 @@ type (
 		wrEvent ConnEvent
 	}
 
-	WorkerPool struct {
+	workerPool struct {
 		fds           []int
 		epolls        []EPoll
 		nextWorkerIdx int
@@ -42,10 +44,13 @@ type (
 )
 
 var (
-	ErrWrongHost     = fmt.Errorf(`wrong host`)
+	// ErrWrongHost возвращается при некорректном имени хоста в качестве listen адреса
+	ErrWrongHost = fmt.Errorf(`wrong host`)
+	// ErrWrongPoolSize возвращается при попытке создать пустой пул воркеров
 	ErrWrongPoolSize = fmt.Errorf(`wrong pool size`)
 )
 
+// NewServer создает новый сервер на указанном адресе и порту
 func NewServer(host string, port uint) (srv *TCPServer, err error) {
 	srv = &TCPServer{}
 
@@ -68,6 +73,7 @@ func NewServer(host string, port uint) (srv *TCPServer, err error) {
 	return srv, err
 }
 
+// OnClientRead заменяет обработчик получения новых данных по соединению
 func (srv *TCPServer) OnClientRead(event ConnEvent) {
 	srv.rdEvent = event
 }
@@ -147,6 +153,7 @@ func (srv *TCPServer) setupServerWorkers(poolSize uint) (err error) {
 	return nil
 }
 
+// Start блокирующе запускает обработку новых соединений
 func (srv *TCPServer) Start() error {
 loop:
 	for !srv.closed {
@@ -255,6 +262,7 @@ func (srv *TCPServer) closeClient(clientEpoll *EPoll, clientFd int) {
 	_, _, _ = syscall.Syscall(syscall.SYS_CLOSE, uintptr(clientFd), 0, 0)
 }
 
+// Close останавливает сервер
 func (srv *TCPServer) Close() {
 	srv.closed = true
 	srv.closeClient(&srv.epoll, srv.fd)
