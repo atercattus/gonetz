@@ -335,6 +335,7 @@ func Test_TCPServer_Start_3(t *testing.T) {
 	}
 }
 
+// Тест на базовый коннект и заглушку srv.rdEvent
 func Test_TCPServer_Start_4(t *testing.T) {
 	srv, err := NewServer(`127.0.0.1`, 0)
 	if err != nil {
@@ -348,20 +349,51 @@ func Test_TCPServer_Start_4(t *testing.T) {
 		return
 	}
 
-	var wg sync.WaitGroup
+	go func() {
+		if err := srv.Start(); err != nil {
+			t.Errorf(`Could not Start: %s`, err)
+		}
+	}()
 
-	wg.Add(1)
-	srv.OnClientRead(func(conn *TCPConn) bool {
-		wg.Done()
-		return true
-	})
+	time.Sleep(100 * time.Millisecond) // для srv.Start()
 
-	syscallWrappers.setWrongSetNonblock()
-	defer syscallWrappers.setRealSetNonblock()
+	if client, err := net.DialTimeout(`tcp`, `127.0.0.1:`+strconv.Itoa(port), 1*time.Second); err != nil {
+		t.Errorf(`Could not dial to server: %s`, err)
+	} else {
+		if _, err := client.Write([]byte(`test data`)); err != nil {
+			t.Errorf(`Could not write to client: %s`, err)
+		}
+		_ = client.Close()
+	}
+
+	time.Sleep(1 * time.Second)
+	srv.Close()
+}
+
+// Тест на TCPServer.startWorkerLoop syscall.EPOLLIN => (errno != syscall.EAGAIN)
+func Test_TCPServer_Start_5(t *testing.T) {
+	srv, err := NewServer(`127.0.0.1`, 0)
+	if err != nil {
+		t.Fatalf(`NewServer failed: %s`, err)
+	}
+
+	port := getSocketPort(srv.fd)
+	if port == 0 {
+		t.Errorf(`Cannot determine test socket port`)
+		return
+	}
+
+	go func() {
+		if err := srv.Start(); err != nil {
+			t.Errorf(`Could not Start: %s`, err)
+		}
+	}()
+
+	time.Sleep(100 * time.Millisecond) // для srv.Start()
 
 	call := 0
 	syscallWrappers.Syscall = func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
-		if trap != syscall.SYS_ACCEPT {
+		if trap != syscall.SYS_READ {
 			return syscall.Syscall(trap, a1, a2, a3)
 		} else if call++; call <= 1 {
 			return 0, 0, syscall.EAGAIN
@@ -370,28 +402,26 @@ func Test_TCPServer_Start_4(t *testing.T) {
 	}
 	defer syscallWrappers.setRealSyscall()
 
-	go func() {
-		if err := srv.Start(); err == nil {
-			t.Errorf(`Successfull Start with wrong Syscall`)
-		} else if expect := `bad file descriptor`; err.Error() != expect {
-			t.Errorf(`Start with wrong Syscall got "%s" expect "%s"`, err.Error(), expect)
-		}
-		wg.Done()
-	}()
-
-	time.Sleep(100 * time.Millisecond) // для srv.Start()
+	var errGot error
 
 	if client, err := net.DialTimeout(`tcp`, `127.0.0.1:`+strconv.Itoa(port), 1*time.Second); err != nil {
+		errGot = err
 	} else {
 		if _, err := client.Write([]byte(`test data`)); err != nil {
-			t.Errorf(`Could not write to client: %s`, err)
+			errGot = err
+		} else {
+			time.Sleep(100 * time.Millisecond) // Чтобы сервер успел получить данные
+			_ = client.Close()
 		}
-		_ = client.Close()
 	}
-	wg.Wait()
+
+	if errGot == nil {
+		t.Errorf(`Successfull client logic with wrong Syscall(SYS_READ)`)
+	}
 }
 
-func Test_TCPServer_Start_5(t *testing.T) {
+// Тест на полноценную обработку запроса сервером
+func Test_TCPServer_Start_6(t *testing.T) {
 	srv, err := NewServer(`127.0.0.1`, 0)
 	if err != nil {
 		t.Errorf(`NewServer failed: %s`, err)

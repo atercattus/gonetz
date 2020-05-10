@@ -14,8 +14,8 @@ type (
 	Millisecond int
 
 	EPoll struct {
-		fd          int
-		serverEvent syscall.EpollEvent
+		fd    int
+		event syscall.EpollEvent
 
 		eventsCap      int
 		events         []syscall.EpollEvent
@@ -49,10 +49,10 @@ func InitServerEpoll(serverFd int, epoll *EPoll) (err error) {
 		return err
 	}
 
-	epoll.serverEvent.Events = syscall.EPOLLIN | EPOLLET
-	epoll.serverEvent.Fd = int32(serverFd)
+	epoll.event.Events = syscall.EPOLLIN | EPOLLET
+	epoll.event.Fd = int32(serverFd)
 
-	if err = syscall.EpollCtl(epoll.fd, syscall.EPOLL_CTL_ADD, serverFd, &epoll.serverEvent); err != nil {
+	if err = syscall.EpollCtl(epoll.fd, syscall.EPOLL_CTL_ADD, serverFd, &epoll.event); err != nil {
 		_ = syscall.Close(epoll.fd)
 		epoll.fd = 0
 		return err
@@ -66,11 +66,11 @@ func (epoll *EPoll) DeleteFd(fd int) (err error) {
 }
 
 func (epoll *EPoll) AddClient(clientFd int) (err error) {
-	epoll.serverEvent.Events = syscall.EPOLLIN | EPOLLET // | syscall.EPOLLOUT
-	epoll.serverEvent.Fd = int32(clientFd)
+	epoll.event.Events = syscall.EPOLLIN | EPOLLET // | syscall.EPOLLOUT
+	epoll.event.Fd = int32(clientFd)
 
 	if err = syscallWrappers.SetNonblock(clientFd, true); err != nil {
-	} else if err = syscall.EpollCtl(epoll.fd, syscall.EPOLL_CTL_ADD, clientFd, &epoll.serverEvent); err != nil {
+	} else if err = syscall.EpollCtl(epoll.fd, syscall.EPOLL_CTL_ADD, clientFd, &epoll.event); err != nil {
 	} else if err = syscallWrappers.SetsockoptInt(clientFd, syscall.SOL_TCP, syscall.TCP_NODELAY, 1); err != nil {
 	} else if err = syscallWrappers.SetsockoptInt(clientFd, syscall.SOL_TCP, syscall.TCP_QUICKACK, 1); err != nil {
 	} else {
