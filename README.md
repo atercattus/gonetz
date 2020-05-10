@@ -1,6 +1,6 @@
-[![Build Status](https://travis-ci.org/atercattus/gonet.svg)](https://travis-ci.org/atercattus/gonet)
-[![Go Report Card](https://goreportcard.com/badge/github.com/atercattus/gonet)](https://goreportcard.com/report/github.com/atercattus/gonet)
-[![Coverage Status](https://coveralls.io/repos/github/atercattus/gonet/badge.svg?branch=master&v1)](https://coveralls.io/github/atercattus/gonet?branch=master)
+[![Build Status](https://travis-ci.org/atercattus/gonetz.svg)](https://travis-ci.org/atercattus/gonetz)
+[![Go Report Card](https://goreportcard.com/badge/github.com/atercattus/gonetz)](https://goreportcard.com/report/github.com/atercattus/gonetz)
+[![Coverage Status](https://coveralls.io/repos/github/atercattus/gonetz/badge.svg?branch=master&v1)](https://coveralls.io/github/atercattus/gonetz?branch=master)
 
-# gonet
+# gonetz
 Tuned TCP client & server for Go (Linux/epoll only).

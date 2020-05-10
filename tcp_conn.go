@@ -1,4 +1,4 @@
-package gonet
+package gonetz
 
 import (
 	"io"
