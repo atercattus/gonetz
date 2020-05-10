@@ -22,10 +22,12 @@ type (
 
 		workerPool WorkerPool
 
-		acceptAddr       syscall.RawSockaddrAny
-		acceptAddrPtr    uintptr
-		acceptAddrLen    uint32
-		acceptAddrLenPtr uintptr
+		acceptAddr struct {
+			syscall.RawSockaddrAny
+			Ptr    uintptr
+			Len    uint32
+			LenPtr uintptr
+		}
 
 		clients map[int]*TCPConn
 		rdEvent ConnEvent
@@ -44,10 +46,10 @@ var (
 	ErrWrongPoolSize = fmt.Errorf(`wrong pool size`)
 )
 
-func MakeServer(host string, port uint) (srv *TCPServer, err error) {
+func NewServer(host string, port uint) (srv *TCPServer, err error) {
 	srv = &TCPServer{}
 
-	if err = srv.makeListener(host, port); err != nil {
+	if err = srv.newListenerIPv4(host, port); err != nil {
 		return nil, err
 	} else if err = srv.setupServerWorkers(1); err != nil {
 		srv.Close()
@@ -57,6 +59,11 @@ func MakeServer(host string, port uint) (srv *TCPServer, err error) {
 	srv.setupAcceptAddr()
 
 	srv.clients = make(map[int]*TCPConn)
+
+	// Заглушка, чтобы не проверять на nil в основном цикле
+	srv.rdEvent = func(conn *TCPConn) bool {
+		return true
+	}
 
 	return srv, err
 }
@@ -70,12 +77,12 @@ func (srv *TCPServer) OnClientRead(event ConnEvent) {
 //}
 
 func (srv *TCPServer) setupAcceptAddr() {
-	srv.acceptAddrPtr = uintptr(unsafe.Pointer(&srv.acceptAddr))
-	srv.acceptAddrLen = syscall.SizeofSockaddrAny
-	srv.acceptAddrLenPtr = uintptr(unsafe.Pointer(&srv.acceptAddrLen))
+	srv.acceptAddr.Ptr = uintptr(unsafe.Pointer(&srv.acceptAddr.RawSockaddrAny))
+	srv.acceptAddr.Len = syscall.SizeofSockaddrAny
+	srv.acceptAddr.LenPtr = uintptr(unsafe.Pointer(&srv.acceptAddr.Len))
 }
 
-func (srv *TCPServer) makeListener(listenAddr string, listenPort uint) (err error) {
+func (srv *TCPServer) newListenerIPv4(listenAddr string, listenPort uint) (err error) {
 	if listenAddr == `` {
 		listenAddr = `0.0.0.0`
 	}
@@ -90,24 +97,23 @@ func (srv *TCPServer) makeListener(listenAddr string, listenPort uint) (err erro
 
 	serverFd := 0
 
-	if serverFd, err = SyscallWrappers.Socket(syscall.AF_INET, syscall.O_NONBLOCK|syscall.SOCK_STREAM, 0); err != nil {
+	if serverFd, err = syscallWrappers.Socket(syscall.AF_INET, syscall.O_NONBLOCK|syscall.SOCK_STREAM, 0); err != nil {
 		return err
-	} else if err = SyscallWrappers.SetNonblock(serverFd, true); err != nil {
+	} else if err = syscallWrappers.SetNonblock(serverFd, true); err != nil {
 		//} else if err = syscall.SetsockoptInt(serverFd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
 		//} else if err = syscall.SetsockoptInt(serverFd, syscall.SOL_SOCKET, SO_REUSEPORT, 1); err != nil {
-	} else if err = SyscallWrappers.SetsockoptInt(serverFd, syscall.SOL_TCP, syscall.TCP_NODELAY, 1); err != nil { // ?
-	} else if err = SyscallWrappers.SetsockoptInt(serverFd, syscall.SOL_TCP, syscall.TCP_QUICKACK, 1); err != nil {
-	} else if err = SyscallWrappers.Bind(serverFd, &addr); err != nil {
-	} else if err = SyscallWrappers.Listen(serverFd, maxEpollEvents); err != nil {
+	} else if err = syscallWrappers.SetsockoptInt(serverFd, syscall.SOL_TCP, syscall.TCP_NODELAY, 1); err != nil { // ?
+	} else if err = syscallWrappers.SetsockoptInt(serverFd, syscall.SOL_TCP, syscall.TCP_QUICKACK, 1); err != nil {
+	} else if err = syscallWrappers.Bind(serverFd, &addr); err != nil {
+	} else if err = syscallWrappers.Listen(serverFd, maxEpollEvents); err != nil {
 	} else if err = InitServerEpoll(serverFd, &srv.epoll); err != nil {
 	} else {
-		// all ok
 		srv.fd = serverFd
 		return nil
 	}
 
 	// something went wrong
-	syscall.Close(serverFd)
+	_ = syscall.Close(serverFd)
 
 	return err
 }
@@ -123,8 +129,6 @@ func (srv *TCPServer) setupServerWorkers(poolSize uint) (err error) {
 	pool.epolls = make([]EPoll, poolSize)
 
 	for i := 0; i < int(poolSize); i++ {
-		i := i
-
 		epoll := &pool.epolls[i]
 
 		if err = InitClientEpoll(epoll); err != nil {
@@ -132,20 +136,21 @@ func (srv *TCPServer) setupServerWorkers(poolSize uint) (err error) {
 		}
 		pool.fds[i] = epoll.fd
 
-		go srv.startWorkerLoop(epoll)
+		go func() {
+			err := srv.startWorkerLoop(epoll)
+			if err != nil {
+				// ToDo: log
+			}
+		}()
 	}
 
 	return nil
 }
 
 func (srv *TCPServer) Start() error {
-	var (
-		epoll = srv.epoll
-	)
-
 loop:
 	for !srv.closed {
-		_, errno := epoll.Wait()
+		_, errno := srv.epoll.Wait()
 		if errno != 0 {
 			if errno == syscall.EINTR {
 				runtime.Gosched()
@@ -166,7 +171,7 @@ loop:
 
 			workerEpoll := srv.getWorkerEPoll()
 			if err := workerEpoll.AddClient(clientFd); err != nil {
-				syscall.Syscall(syscall.SYS_CLOSE, uintptr(clientFd), 0, 0)
+				_, _, _ = syscall.Syscall(syscall.SYS_CLOSE, uintptr(clientFd), 0, 0)
 			} else {
 				var conn TCPConn
 				conn.fd = clientFd
@@ -217,30 +222,28 @@ func (srv *TCPServer) startWorkerLoop(epoll *EPoll) error {
 				if errno != 0 {
 					if errno != syscall.EAGAIN { // если ошибка не про "обработаны все новые данные"
 						// syscall.EBADF, syscall.ECONNRESET, ...
-						srv.close(epoll, clientFd)
+						srv.closeClient(epoll, clientFd)
 					}
 				} else if nbytes > 0 {
-					if srv.rdEvent != nil {
-						if conn, ok := srv.clients[clientFd]; ok {
-							conn.RdBuf.Write(readBuf[:nbytes])
-							srv.rdEvent(conn)
-						}
+					if conn, ok := srv.clients[clientFd]; ok {
+						_, _ = conn.RdBuf.Write(readBuf[:nbytes])
+						srv.rdEvent(conn)
 					}
 				} else {
 					// соединение закрылось
-					srv.close(epoll, clientFd)
+					srv.closeClient(epoll, clientFd)
 				}
 				//} else if (eventsMask & syscall.EPOLLOUT) != 0 {
 				// можно записывать (если не получилось сразу весь ответ выслать)
 				// }
 			} else if (eventsMask & (syscall.EPOLLERR | syscall.EPOLLHUP)) != 0 {
-				srv.close(epoll, clientFd)
+				srv.closeClient(epoll, clientFd)
 			}
 		}
 	}
 }
 
-func (srv *TCPServer) close(clientEpoll *EPoll, clientFd int) {
+func (srv *TCPServer) closeClient(clientEpoll *EPoll, clientFd int) {
 	conn, ok := srv.clients[clientFd]
 	if ok {
 		conn.RdBuf.Clean()
@@ -248,23 +251,29 @@ func (srv *TCPServer) close(clientEpoll *EPoll, clientFd int) {
 		delete(srv.clients, clientFd)
 	}
 
-	// ToDo: стоит проверять ошибки :)
-	clientEpoll.DeleteFd(clientFd)
-	syscall.Syscall(syscall.SYS_CLOSE, uintptr(clientFd), 0, 0)
-
-	for _, epoll := range srv.workerPool.epolls {
-		syscall.Syscall(syscall.SYS_CLOSE, uintptr(epoll.fd), 0, 0)
-	}
+	_ = clientEpoll.DeleteFd(clientFd)
+	_, _, _ = syscall.Syscall(syscall.SYS_CLOSE, uintptr(clientFd), 0, 0)
 }
 
 func (srv *TCPServer) Close() {
 	srv.closed = true
-	srv.close(&srv.epoll, srv.fd)
+	srv.closeClient(&srv.epoll, srv.fd)
 	srv.fd = 0
+
+	for _, epoll := range srv.workerPool.epolls {
+		_, _, _ = syscall.Syscall(syscall.SYS_CLOSE, uintptr(epoll.fd), 0, 0)
+	}
+	srv.workerPool.epolls = srv.workerPool.epolls[:0]
 }
 
 func (srv *TCPServer) accept() (clientFd int, errno syscall.Errno) {
-	r1, _, errno := SyscallWrappers.Syscall(syscall.SYS_ACCEPT, uintptr(srv.fd), srv.acceptAddrPtr, srv.acceptAddrLenPtr)
+	r1, _, errno := syscallWrappers.Syscall(
+		syscall.SYS_ACCEPT,
+		uintptr(srv.fd),
+		srv.acceptAddr.Ptr,
+		srv.acceptAddr.LenPtr,
+	)
+
 	clientFd = int(r1)
 	return clientFd, errno
 }

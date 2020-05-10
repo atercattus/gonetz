@@ -14,7 +14,7 @@ type (
 )
 
 var (
-	bufPool4K = sync.Pool{
+	bufPool4K = sync.Pool{ // ToDo: можно сделать мой вариант канал+пул (но только с bench сравнением)
 		New: func() interface{} {
 			return make([]byte, 4096)
 		},
@@ -25,7 +25,8 @@ func (bc *BufChain) Len() int {
 	return bc.totalLen
 }
 
-func (bc *BufChain) Write(buf []byte) (n int, err error) {
+// Write никогда не возвращает error
+func (bc *BufChain) Write(buf []byte) (n int, _ error) {
 	n = len(buf)
 	bc.totalLen += n
 
@@ -73,7 +74,8 @@ func (bc *BufChain) appendToLast(buf []byte) int {
 	return len(buf)
 }
 
-func (bc *BufChain) Read(buf []byte) (n int, err error) {
+// Read никогда не возвращает error
+func (bc *BufChain) Read(buf []byte) (n int, _ error) {
 	var (
 		bufPos    int
 		bufLen    = len(buf)

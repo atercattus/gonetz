@@ -2,7 +2,6 @@ package gonet
 
 import (
 	"bytes"
-	"fmt"
 	"math/rand"
 	"net"
 	"strconv"
@@ -28,81 +27,81 @@ func Test_TCPServer_setupAcceptAddr(t *testing.T) {
 	var srv TCPServer
 
 	srv.setupAcceptAddr()
-	if srv.acceptAddrPtr == 0 {
+	if srv.acceptAddr.Ptr == 0 {
 		t.Fatalf(`srv.acceptAddrPtr == 0`)
 	}
-
-	if srv.acceptAddrLen == 0 {
+	if srv.acceptAddr.Len == 0 {
 		t.Fatalf(`srv.acceptAddrLen == 0`)
 	}
 
-	if srv.acceptAddrLenPtr == 0 {
+	if srv.acceptAddr.LenPtr == 0 {
 		t.Fatalf(`srv.acceptAddrLenPtr == 0`)
 	}
 }
 
-func Test_TCPServer_makeListener_1(t *testing.T) {
+func Test_TCPServer_newListenerIPv4_1(t *testing.T) {
 	var srv TCPServer
 
-	if err := srv.makeListener(`lol.kek`, 0); err == nil {
-		t.Fatalf(`makeListener for wrong host was successfull`)
+	if err := srv.newListenerIPv4(`lol.kek`, 0); err == nil {
+		t.Fatalf(`newListenerIPv4 for wrong host was successfull`)
 	} else if err != ErrWrongHost {
-		t.Fatalf(`makeListener for wrong host returned wrong error`)
+		t.Fatalf(`newListenerIPv4 for wrong host returned wrong error`)
 	}
 
-	if err := srv.makeListener(``, 0); err != nil {
-		t.Fatalf(`makeListener with empty host failed: %s`, err)
+	if err := srv.newListenerIPv4(``, 0); err != nil {
+		t.Fatalf(`newListenerIPv4 with empty host failed: %s`, err)
 	}
 
-	if err := srv.makeListener(`127.0.0.1`, 0); err != nil {
-		t.Fatalf(`makeListener with 127.0.0.1 host failed: %s`, err)
+	if err := srv.newListenerIPv4(`127.0.0.1`, 0); err != nil {
+		t.Fatalf(`newListenerIPv4 with 127.0.0.1 host failed: %s`, err)
 	}
 }
 
-func Test_TCPServer_makeListener_2(t *testing.T) {
+func Test_TCPServer_newListenerIPv4_2(t *testing.T) {
 	var srv TCPServer
 
-	SyscallWrappers.setWrongSocket()
-	err := srv.makeListener(``, 0)
-	SyscallWrappers.setRealSocket()
+	syscallWrappers.setWrongSocket()
+	err := srv.newListenerIPv4(``, 0)
+	syscallWrappers.setRealSocket()
 	if err == nil {
-		t.Fatalf(`makeListener with wrong syscall.Socket was successfull`)
+		t.Fatalf(`newListenerIPv4 with wrong syscall.Socket was successfull`)
 	}
 
-	SyscallWrappers.setWrongSetNonblock()
-	err = srv.makeListener(``, 0)
-	SyscallWrappers.setRealSetNonblock()
+	syscallWrappers.setWrongSetNonblock()
+	err = srv.newListenerIPv4(``, 0)
+	syscallWrappers.setRealSetNonblock()
 	if err == nil {
-		t.Fatalf(`makeListener with wrong syscall.SetNonblock was successfull`)
+		t.Fatalf(`newListenerIPv4 with wrong syscall.SetNonblock was successfull`)
 	}
 
-	SyscallWrappers.setWrongSetsockoptInt(nil)
-	err = srv.makeListener(``, 0)
-	SyscallWrappers.setRealSetsockoptInt()
+	syscallWrappers.setWrongSetsockoptInt(nil)
+	err = srv.newListenerIPv4(``, 0)
+	syscallWrappers.setRealSetsockoptInt()
 	if err == nil {
-		t.Fatalf(`makeListener with wrong syscall.SetsockoptInt was successfull`)
+		t.Fatalf(`newListenerIPv4 with wrong syscall.SetsockoptInt was successfull`)
 	}
 
-	SyscallWrappers.setWrongBind()
-	err = srv.makeListener(``, 0)
-	SyscallWrappers.setRealBind()
+	syscallWrappers.setWrongBind()
+	err = srv.newListenerIPv4(``, 0)
+	syscallWrappers.setRealBind()
 	if err == nil {
-		t.Fatalf(`makeListener with wrong syscall.Bind was successfull`)
+		t.Fatalf(`newListenerIPv4 with wrong syscall.Bind was successfull`)
 	}
 
-	SyscallWrappers.setWrongListen()
-	err = srv.makeListener(``, 0)
-	SyscallWrappers.setRealListen()
+	syscallWrappers.setWrongListen()
+	err = srv.newListenerIPv4(``, 0)
+	syscallWrappers.setRealListen()
 	if err == nil {
-		t.Fatalf(`makeListener with wrong syscall.Listen was successfull`)
+		t.Fatalf(`newListenerIPv4 with wrong syscall.Listen was successfull`)
 	}
 }
 
 func Test_TCPServer_setupServerWorkers_1(t *testing.T) {
 	var srv TCPServer
+	//defer srv.Close()
 
 	if err := srv.setupServerWorkers(0); err == nil {
-		t.Errorf(`setupServerWorkers successed with 0 pool size`)
+		t.Errorf(`setupServerWorkers succeeded with 0 pool size`)
 		return
 	}
 
@@ -110,7 +109,12 @@ func Test_TCPServer_setupServerWorkers_1(t *testing.T) {
 		poolSize         = 1
 		epollWaitTimeout = 10
 	)
+
+	var bakDefaultEPollWaitTimeout = DefaultEPollWaitTimeout
 	DefaultEPollWaitTimeout = epollWaitTimeout // для проверки srv.workerPool ниже
+	defer func() {
+		DefaultEPollWaitTimeout = bakDefaultEPollWaitTimeout
+	}()
 
 	if err := srv.setupServerWorkers(poolSize); err != nil {
 		t.Errorf(`setupServerWorkers failed: %s`, err)
@@ -155,30 +159,31 @@ func Test_TCPServer_setupServerWorkers_1(t *testing.T) {
 		return
 	}
 
-	srv.workerPool.epolls[0].AddClient(clientFd)
-	time.Sleep(10 * epollWaitTimeout * time.Millisecond)
-	syscall.Syscall(syscall.SYS_CLOSE, uintptr(clientFd), 0, 0)
-	time.Sleep(10 * epollWaitTimeout * time.Millisecond)
-
-	//srv.Close()
+	if err := srv.workerPool.epolls[0].AddClient(clientFd); err != nil {
+		t.Errorf(`cannot add client to pool: %s`, err)
+		return
+	}
+	time.Sleep(10 * (epollWaitTimeout * time.Millisecond))
+	_, _, _ = syscall.Syscall(syscall.SYS_CLOSE, uintptr(clientFd), 0, 0)
+	time.Sleep(10 * (epollWaitTimeout * time.Millisecond))
 }
 
 func Test_TCPServer_setupServerWorkers_2(t *testing.T) {
 	var srv TCPServer
 
-	SyscallWrappers.setWrongEpollCreate1(nil)
+	syscallWrappers.setWrongEpollCreate1(nil)
 	err := srv.setupServerWorkers(1)
-	SyscallWrappers.setRealEpollCreate1()
+	syscallWrappers.setRealEpollCreate1()
 	if err == nil {
 		t.Errorf(`setupServerWorkers with wrong syscall.EpollCreate1 was successfull`)
 		return
 	}
 
-	SyscallWrappers.setWrongEpollCreate1(
+	syscallWrappers.setWrongEpollCreate1(
 		CheckFuncSkipN(1, nil),
 	)
 	err = srv.setupServerWorkers(1)
-	SyscallWrappers.setRealEpollCreate1()
+	syscallWrappers.setRealEpollCreate1()
 	if err == nil {
 		t.Errorf(`setupServerWorkers with wrong syscall.EpollCreate1 (skip 1) was successfull`)
 		return
@@ -188,35 +193,35 @@ func Test_TCPServer_setupServerWorkers_2(t *testing.T) {
 func Test_TCPServer_accept(t *testing.T) {
 	var srv TCPServer
 
-	if clientFd, errno := srv.accept(); clientFd != -1 || errno == 0 {
+	if clientFd, errno := srv.accept(); (clientFd != -1) || (errno == 0) {
 		t.Errorf(`unexpected accept response for wrong call. clientFd:%d errno:%d`, clientFd, errno)
 		return
 	}
 
-	// ToDo:
+	// Полноценные тесты в рамках тестов Test_TCPServer_Start_*
 }
 
-func Test_TCPServer_MakeServer_1(t *testing.T) {
-	if _, err := MakeServer(`lol.kek`, 0); err == nil {
-		t.Fatalf(`MakeServer didnt failed with wrong listen addr`)
+func Test_TCPServer_NewServer_1(t *testing.T) {
+	if _, err := NewServer(`lol.kek`, 0); err == nil {
+		t.Fatalf(`NewServer didnt failed with wrong listen addr`)
 	}
 }
 
-func Test_TCPServer_MakeServer_2(t *testing.T) {
-	SyscallWrappers.setWrongEpollCreate1(
+func Test_TCPServer_NewServer_2(t *testing.T) {
+	syscallWrappers.setWrongEpollCreate1(
 		CheckFuncSkipN(1, nil),
 	)
-	_, err := MakeServer(``, 0)
-	SyscallWrappers.setRealEpollCreate1()
+	_, err := NewServer(``, 0)
+	syscallWrappers.setRealEpollCreate1()
 	if err == nil {
-		t.Errorf(`MakeServer didnt failed with wrong syscall.EpollCreate1`)
+		t.Errorf(`NewServer didnt failed with wrong syscall.EpollCreate1`)
 	}
 }
 
-func Test_TCPServer_MakeServer_3(t *testing.T) {
-	srv, err := MakeServer(`127.0.0.1`, 0)
+func Test_TCPServer_NewServer_3(t *testing.T) {
+	srv, err := NewServer(`127.0.0.1`, 0)
 	if err != nil {
-		t.Errorf(`MakeServer failed: %s`, err)
+		t.Errorf(`NewServer failed: %s`, err)
 		return
 	}
 	//defer srv.Close()
@@ -227,36 +232,41 @@ func Test_TCPServer_MakeServer_3(t *testing.T) {
 	}
 }
 
-func Test_TCPServer_MakeServer_4(t *testing.T) {
+func Test_TCPServer_NewServer_4(t *testing.T) {
 	call := 0
-	SyscallWrappers.setWrongEpollCreate1(func(data interface{}) bool {
+	syscallWrappers.setWrongEpollCreate1(func(data interface{}) bool {
 		call++
-		return call < 2
+		return call <= 1 // "Ломаю" только первый вызов
 	})
-	_, err := MakeServer(`127.0.0.1`, 0)
-	SyscallWrappers.setRealEpollCreate1()
+	_, err := NewServer(`127.0.0.1`, 0)
+	syscallWrappers.setRealEpollCreate1()
 	if err == nil {
 		//srv.Close()
-		t.Errorf(`Successfull MakeServer with wrong EpollCreate1`)
+		t.Errorf(`Successfull NewServer with wrong EpollCreate1`)
 	}
 }
 
 func Test_TCPServer_Start_1(t *testing.T) {
+	var bakDefaultEPollWaitTimeout = DefaultEPollWaitTimeout
 	DefaultEPollWaitTimeout = 10
+	defer func() {
+		DefaultEPollWaitTimeout = bakDefaultEPollWaitTimeout
+	}()
 
-	SyscallWrappers.setWrongSyscall6(
+	syscallWrappers.setWrongSyscall6(
 		CheckFuncSyscallTrapSkipN(syscall.SYS_EPOLL_WAIT, 1, nil),
 	)
-	defer SyscallWrappers.setRealSyscall6()
+	defer syscallWrappers.setRealSyscall6()
 
-	srv, err := MakeServer(`127.0.0.1`, 0)
+	srv, err := NewServer(`127.0.0.1`, 0)
 	if err != nil {
-		t.Errorf(`MakeServer failed: %s`, err)
+		t.Errorf(`NewServer failed: %s`, err)
 		return
 	}
 	//defer srv.Close()
 
-	timeLimiter := time.After(1 * time.Second)
+	timeout := time.Duration(DefaultEPollWaitTimeout) * time.Millisecond
+	timeLimiter := time.After(timeout * 2) // x2 запас на время реакции
 	success := make(chan bool, 1)
 
 	go func() {
@@ -274,22 +284,22 @@ func Test_TCPServer_Start_1(t *testing.T) {
 }
 
 func Test_TCPServer_Start_2(t *testing.T) {
-	srv, err := MakeServer(`127.0.0.1`, 0)
+	srv, err := NewServer(`127.0.0.1`, 0)
 	if err != nil {
-		t.Errorf(`MakeServer failed: %s`, err)
+		t.Errorf(`NewServer failed: %s`, err)
 		return
 	}
 	//defer srv.Close()
 
 	call := 0
-	SyscallWrappers.Syscall6 = func(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2 uintptr, err syscall.Errno) {
-		if call++; call < 2 {
+	syscallWrappers.Syscall6 = func(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2 uintptr, err syscall.Errno) {
+		if call++; call <= 1 {
 			return 0, 0, syscall.EINTR
 		}
 		return 0, 0, syscall.EINVAL
 	}
 	err = srv.Start()
-	SyscallWrappers.setRealSyscall6()
+	syscallWrappers.setRealSyscall6()
 	if err == nil {
 		t.Errorf(`Successfull Start with wrong Syscall6`)
 		return
@@ -297,21 +307,21 @@ func Test_TCPServer_Start_2(t *testing.T) {
 }
 
 func Test_TCPServer_Start_3(t *testing.T) {
-	srv, err := MakeServer(`127.0.0.1`, 0)
+	srv, err := NewServer(`127.0.0.1`, 0)
 	if err != nil {
-		t.Errorf(`MakeServer failed: %s`, err)
+		t.Errorf(`NewServer failed: %s`, err)
 		return
 	}
 	//defer srv.Close()
 
 	call := 0
-	SyscallWrappers.Syscall = func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
-		if call++; call < 2 {
+	syscallWrappers.Syscall = func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
+		if call++; call <= 1 {
 			return 0, 0, syscall.EAGAIN
 		}
 		return 0, 0, syscall.EINVAL
 	}
-	defer SyscallWrappers.setRealSyscall()
+	defer syscallWrappers.setRealSyscall()
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -326,9 +336,9 @@ func Test_TCPServer_Start_3(t *testing.T) {
 }
 
 func Test_TCPServer_Start_4(t *testing.T) {
-	srv, err := MakeServer(`127.0.0.1`, 0)
+	srv, err := NewServer(`127.0.0.1`, 0)
 	if err != nil {
-		t.Fatalf(`MakeServer failed: %s`, err)
+		t.Fatalf(`NewServer failed: %s`, err)
 	}
 	//defer srv.Close()
 
@@ -346,22 +356,26 @@ func Test_TCPServer_Start_4(t *testing.T) {
 		return true
 	})
 
-	SyscallWrappers.setWrongSetNonblock()
-	defer SyscallWrappers.setRealSetNonblock()
+	syscallWrappers.setWrongSetNonblock()
+	defer syscallWrappers.setRealSetNonblock()
 
 	call := 0
-	SyscallWrappers.Syscall = func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
+	syscallWrappers.Syscall = func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
 		if trap != syscall.SYS_ACCEPT {
 			return syscall.Syscall(trap, a1, a2, a3)
-		} else if call++; call < 2 {
+		} else if call++; call <= 1 {
 			return 0, 0, syscall.EAGAIN
 		}
 		return 0, 0, syscall.EBADF
 	}
-	defer SyscallWrappers.setRealSyscall()
+	defer syscallWrappers.setRealSyscall()
 
 	go func() {
-		srv.Start()
+		if err := srv.Start(); err == nil {
+			t.Errorf(`Successfull Start with wrong Syscall`)
+		} else if expect := `bad file descriptor`; err.Error() != expect {
+			t.Errorf(`Start with wrong Syscall got "%s" expect "%s"`, err.Error(), expect)
+		}
 		wg.Done()
 	}()
 
@@ -369,16 +383,18 @@ func Test_TCPServer_Start_4(t *testing.T) {
 
 	if client, err := net.DialTimeout(`tcp`, `127.0.0.1:`+strconv.Itoa(port), 1*time.Second); err != nil {
 	} else {
-		client.Write([]byte(`test data`))
-		client.Close()
+		if _, err := client.Write([]byte(`test data`)); err != nil {
+			t.Errorf(`Could not write to client: %s`, err)
+		}
+		_ = client.Close()
 	}
 	wg.Wait()
 }
 
 func Test_TCPServer_Start_5(t *testing.T) {
-	srv, err := MakeServer(`127.0.0.1`, 0)
+	srv, err := NewServer(`127.0.0.1`, 0)
 	if err != nil {
-		t.Errorf(`MakeServer failed: %s`, err)
+		t.Errorf(`NewServer failed: %s`, err)
 		return
 	}
 	//defer srv.Close()
@@ -397,7 +413,9 @@ func Test_TCPServer_Start_5(t *testing.T) {
 
 	wg.Add(1)
 	srv.OnClientRead(func(conn *TCPConn) bool {
-		readed.ReadFrom(conn)
+		if _, err := readed.ReadFrom(conn); err != nil {
+			t.Errorf(`Could not read client data: %s`, err.Error())
+		}
 		wg.Done()
 		return true
 	})
@@ -407,8 +425,8 @@ func Test_TCPServer_Start_5(t *testing.T) {
 
 	go func() {
 		if err := srv.Start(); err != nil {
-			rdrWaiter <- false
 			t.Errorf(`Server start failed: %s (%s)`, err, time.Now())
+			rdrWaiter <- false
 		}
 	}()
 
@@ -416,11 +434,13 @@ func Test_TCPServer_Start_5(t *testing.T) {
 		time.Sleep(200 * time.Millisecond) // для srv.Start()
 
 		if client, err := net.DialTimeout(`tcp`, `127.0.0.1:`+strconv.Itoa(port), 1*time.Second); err != nil {
-			fmt.Println(err)
+			t.Errorf(`Could not dial to server: %s`, err)
 			rdrWaiter <- false
 		} else {
-			client.Write(testData)
-			client.Close()
+			if _, err := client.Write(testData); err != nil {
+				t.Errorf(`Could not write to client: %s`, err)
+			}
+			_ = client.Close()
 		}
 
 		wg.Wait()
@@ -433,7 +453,7 @@ func Test_TCPServer_Start_5(t *testing.T) {
 		t.Errorf(`Timelimit reached`)
 	case succ := <-rdrWaiter:
 		if !succ {
-			// ok
+			// ошибка уже возвращена
 		} else if got, exp := readed.Len(), len(testData); got != exp {
 			t.Errorf(`Readed data len differs from sended. Expect:%d got:%d`, exp, got)
 		} else if !bytes.Equal(readed.Bytes(), testData) {
@@ -445,13 +465,16 @@ func Test_TCPServer_Start_5(t *testing.T) {
 func Test_TCPServer_startWorkerLoop(t *testing.T) {
 	var srv TCPServer
 
-	SyscallWrappers.setWrongSyscall6(
+	syscallWrappers.setWrongSyscall6(
 		CheckFuncSyscallTrapSkipN(syscall.SYS_EPOLL_WAIT, 0, nil),
 	)
-	srv.setupServerWorkers(1)
-	err := srv.startWorkerLoop(&srv.workerPool.epolls[0])
-	SyscallWrappers.setRealSyscall6()
-	if err == nil {
-		t.Errorf(`setupServerWorkers with wrong syscall.Syscall6(syscall.SYS_EPOLL_WAIT) was successfull`)
+	defer syscallWrappers.setRealSyscall6()
+
+	if err := srv.setupServerWorkers(1); err != nil {
+		t.Errorf(`setupServerWorkers was failed: %s`, err)
+	}
+
+	if err := srv.startWorkerLoop(&srv.workerPool.epolls[0]); err == nil {
+		t.Errorf(`startWorkerLoop with wrong syscall.Syscall6(syscall.SYS_EPOLL_WAIT) was successfull`)
 	}
 }

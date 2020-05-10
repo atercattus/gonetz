@@ -40,7 +40,7 @@ var (
 	// Сбойные варианты функций (read-only)
 	errorableSyscallWrappers = syscallWrapperFuncs{
 		EpollCreate1: func(flag int) (fd int, err error) {
-			if cb := SyscallWrappers.EpollCreate1Check; cb != nil {
+			if cb := syscallWrappers.EpollCreate1Check; cb != nil {
 				if !cb(flag) {
 					return 0, syscall.EINVAL
 				}
@@ -59,7 +59,7 @@ var (
 		},
 
 		SetsockoptInt: func(fd, level, opt int, value int) (err error) {
-			if cb := SyscallWrappers.SetsockoptIntCheck; cb != nil {
+			if cb := syscallWrappers.SetsockoptIntCheck; cb != nil {
 				args := []int{fd, level, opt, value}
 				if !cb(args) {
 					return syscall.EINVAL
@@ -79,7 +79,7 @@ var (
 		},
 
 		Syscall: func(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
-			if cb := SyscallWrappers.SyscallCheck; cb != nil {
+			if cb := syscallWrappers.SyscallCheck; cb != nil {
 				args := []uintptr{trap, a1, a2, a3}
 				if !cb(args) {
 					return 0, 0, syscall.EINVAL
@@ -91,7 +91,7 @@ var (
 		},
 
 		Syscall6: func(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2 uintptr, err syscall.Errno) {
-			if cb := SyscallWrappers.Syscall6Check; cb != nil {
+			if cb := syscallWrappers.Syscall6Check; cb != nil {
 				args := []uintptr{trap, a1, a2, a3, a4, a5, a6}
 				if !cb(args) {
 					return 0, 0, syscall.EINVAL
@@ -104,7 +104,7 @@ var (
 	}
 
 	// Рабочие варианты функций
-	SyscallWrappers = defaultSyscallWrappers
+	syscallWrappers = defaultSyscallWrappers
 )
 
 var (

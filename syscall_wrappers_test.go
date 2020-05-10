@@ -123,137 +123,137 @@ func Test_SyscallWrappers_CheckFuncSyscallTrapSkipN(t *testing.T) {
 }
 
 func Test_SyscallWrappers_EpollCreate1(t *testing.T) {
-	SyscallWrappers.setWrongEpollCreate1(nil)
-	_, errno := SyscallWrappers.EpollCreate1(0)
+	syscallWrappers.setWrongEpollCreate1(nil)
+	_, errno := syscallWrappers.EpollCreate1(0)
 	if errno != syscall.EINVAL {
 		t.Errorf(`Wrong errno`)
 	}
-	SyscallWrappers.setRealEpollCreate1()
+	syscallWrappers.setRealEpollCreate1()
 
-	SyscallWrappers.setWrongEpollCreate1(CheckFuncSkipN(0, nil))
-	_, errno = SyscallWrappers.EpollCreate1(0)
+	syscallWrappers.setWrongEpollCreate1(CheckFuncSkipN(0, nil))
+	_, errno = syscallWrappers.EpollCreate1(0)
 	if errno != syscall.EINVAL {
 		t.Errorf(`Wrong errno (with checkFunc)`)
 	}
-	SyscallWrappers.setRealEpollCreate1()
+	syscallWrappers.setRealEpollCreate1()
 
-	SyscallWrappers.setWrongEpollCreate1(func(data interface{}) bool {
+	syscallWrappers.setWrongEpollCreate1(func(data interface{}) bool {
 		return true
 	})
-	_, errno = SyscallWrappers.EpollCreate1(0)
+	_, errno = syscallWrappers.EpollCreate1(0)
 	if errno != nil {
 		t.Errorf(`Wrong errno (custom checkFunc)`)
 	}
-	SyscallWrappers.setRealEpollCreate1()
+	syscallWrappers.setRealEpollCreate1()
 }
 
 func Test_SyscallWrappers_Socket(t *testing.T) {
-	SyscallWrappers.setWrongSocket()
+	syscallWrappers.setWrongSocket()
 	_, errno := errorableSyscallWrappers.Socket(0, 0, 0)
 	if errno != syscall.EINVAL {
 		t.Errorf(`Wrong errno`)
 	}
-	SyscallWrappers.setRealSocket()
+	syscallWrappers.setRealSocket()
 }
 
 func Test_SyscallWrappers_SetNonblock(t *testing.T) {
-	SyscallWrappers.setWrongSetNonblock()
+	syscallWrappers.setWrongSetNonblock()
 	errno := errorableSyscallWrappers.SetNonblock(0, true)
 	if errno != syscall.EINVAL {
 		t.Errorf(`Wrong errno`)
 	}
-	SyscallWrappers.setRealSetNonblock()
+	syscallWrappers.setRealSetNonblock()
 }
 
 func Test_SyscallWrappers_SetsockoptInt(t *testing.T) {
-	SyscallWrappers.setWrongSetsockoptInt(nil)
+	syscallWrappers.setWrongSetsockoptInt(nil)
 	errno := errorableSyscallWrappers.SetsockoptInt(0, 0, 0, 0)
 	if errno != syscall.EINVAL {
 		t.Errorf(`Wrong errno`)
 	}
-	SyscallWrappers.setRealSetsockoptInt()
+	syscallWrappers.setRealSetsockoptInt()
 
-	SyscallWrappers.setWrongSetsockoptInt(CheckFuncSkipN(0, nil))
+	syscallWrappers.setWrongSetsockoptInt(CheckFuncSkipN(0, nil))
 	errno = errorableSyscallWrappers.SetsockoptInt(0, 0, 0, 0)
 	if errno != syscall.EINVAL {
 		t.Errorf(`Wrong errno (with checkFunc)`)
 	}
-	SyscallWrappers.setRealSetsockoptInt()
+	syscallWrappers.setRealSetsockoptInt()
 
-	SyscallWrappers.setWrongSetsockoptInt(func(data interface{}) bool {
+	syscallWrappers.setWrongSetsockoptInt(func(data interface{}) bool {
 		return true
 	})
 	errno = errorableSyscallWrappers.SetsockoptInt(0, 0, 0, 0)
 	if errno != syscall.ENOTSOCK {
 		t.Errorf(`Wrong errno (custom checkFunc)`)
 	}
-	SyscallWrappers.setRealSetsockoptInt()
+	syscallWrappers.setRealSetsockoptInt()
 }
 
 func Test_SyscallWrappers_Bind(t *testing.T) {
-	SyscallWrappers.setWrongBind()
+	syscallWrappers.setWrongBind()
 	errno := errorableSyscallWrappers.Bind(0, nil)
 	if errno != syscall.EINVAL {
 		t.Errorf(`Wrong errno`)
 	}
-	SyscallWrappers.setRealBind()
+	syscallWrappers.setRealBind()
 }
 
 func Test_SyscallWrappers_Listen(t *testing.T) {
-	SyscallWrappers.setWrongListen()
+	syscallWrappers.setWrongListen()
 	errno := errorableSyscallWrappers.Listen(0, 0)
 	if errno != syscall.EINVAL {
 		t.Errorf(`Wrong errno`)
 	}
-	SyscallWrappers.setRealListen()
+	syscallWrappers.setRealListen()
 }
 
 func Test_SyscallWrappers_Syscall(t *testing.T) {
-	SyscallWrappers.setWrongSyscall(nil)
+	syscallWrappers.setWrongSyscall(nil)
 	_, _, errno := errorableSyscallWrappers.Syscall(1, 2, 3, 4)
 	if errno != syscall.EINVAL {
 		t.Errorf(`Wrong errno`)
 	}
-	SyscallWrappers.setRealSyscall()
+	syscallWrappers.setRealSyscall()
 
-	SyscallWrappers.setWrongSyscall(CheckFuncSkipN(0, nil))
+	syscallWrappers.setWrongSyscall(CheckFuncSkipN(0, nil))
 	_, _, errno = errorableSyscallWrappers.Syscall(1, 2, 3, 4)
 	if errno != syscall.EINVAL {
 		t.Errorf(`Wrong errno (with checkFunc)`)
 	}
-	SyscallWrappers.setRealSyscall()
+	syscallWrappers.setRealSyscall()
 
-	SyscallWrappers.setWrongSyscall(func(data interface{}) bool {
+	syscallWrappers.setWrongSyscall(func(data interface{}) bool {
 		return true
 	})
 	_, _, errno = errorableSyscallWrappers.Syscall(1, 2, 3, 4)
 	if errno != syscall.EFAULT {
 		t.Errorf(`Wrong errno (custom checkFunc)`)
 	}
-	SyscallWrappers.setRealSyscall()
+	syscallWrappers.setRealSyscall()
 }
 
 func Test_SyscallWrappers_Syscall6(t *testing.T) {
-	SyscallWrappers.setWrongSyscall6(nil)
+	syscallWrappers.setWrongSyscall6(nil)
 	_, _, errno := errorableSyscallWrappers.Syscall6(1, 2, 3, 4, 5, 6, 7)
 	if errno != syscall.EINVAL {
 		t.Errorf(`Wrong errno`)
 	}
-	SyscallWrappers.setRealSyscall6()
+	syscallWrappers.setRealSyscall6()
 
-	SyscallWrappers.setWrongSyscall6(CheckFuncSkipN(0, nil))
+	syscallWrappers.setWrongSyscall6(CheckFuncSkipN(0, nil))
 	_, _, errno = errorableSyscallWrappers.Syscall6(1, 2, 3, 4, 5, 6, 7)
 	if errno != syscall.EINVAL {
 		t.Errorf(`Wrong errno (with checkFunc)`)
 	}
-	SyscallWrappers.setRealSyscall6()
+	syscallWrappers.setRealSyscall6()
 
-	SyscallWrappers.setWrongSyscall6(func(data interface{}) bool {
+	syscallWrappers.setWrongSyscall6(func(data interface{}) bool {
 		return true
 	})
 	_, _, errno = errorableSyscallWrappers.Syscall6(1, 2, 3, 4, 5, 6, 7)
 	if errno != syscall.EFAULT {
 		t.Errorf(`Wrong errno (custom checkFunc)`)
 	}
-	SyscallWrappers.setRealSyscall6()
+	syscallWrappers.setRealSyscall6()
 }
